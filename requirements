@@ -1,0 +1,61 @@
+Item Master 
+-> item code ( identifier)
+-> item name 
+-> item type 
+-> size 
+-> color 
+-> Unit measurement 
+-> price 
+-> currency 
+-> HHCODE (for pi)
+-> weight
+
+
+Customer Master 
+
+-> name
+-> address
+-> email 
+-> phone 
+-> attention person 
+-> payment_type (lc 30 / lc 90 / lc 120 / cash )
+
+
+
+-> Billing address 
+
+
+-> name
+-> address
+-> email 
+-> phone 
+-> attention person 
+
+
+
+-> Shpping address 
+
+
+-> name
+-> address
+-> email 
+-> phone 
+-> attention person 
+
+
+Customer bin no: -> Billing(pi)
+
+
+Payment terms -> text editor
+
+
+
+item style 
+-> 
+
+
+pp qunatity , yarn qantity , material amount. 
+
+
+payment-> 
+LC Details.

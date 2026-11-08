@@ -1,0 +1,1 @@
+sudo chown -R $USER:www-data /home/zabeer/dev/laravel/order_management

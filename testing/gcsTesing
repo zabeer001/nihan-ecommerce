@@ -1,0 +1,74 @@
+Route::post('tapes/gcs-upload-test', function (Request $request) {
+    try {
+        $validated = $request->validate([
+            'image' => 'required|image|mimes:jpg,jpeg,png,webp,gif|max:10240',
+        ]);
+
+        $disk = config('filesystems.tape_image_disk', 'public');
+        $file = $validated['image'];
+        $extension = $file->getClientOriginalExtension() ?: $file->extension();
+        $filename = time() . '_' . Str::random(10) . '.' . $extension;
+        $diskConfig = (array) config("filesystems.disks.{$disk}", []);
+        $keyFilePath = (string) ($diskConfig['key_file_path'] ?? '');
+        $bucket = (string) ($diskConfig['bucket'] ?? '');
+
+        if ($keyFilePath === '' || !is_file($keyFilePath) || !is_readable($keyFilePath)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'GCS key file is missing or not readable.',
+                'data' => [
+                    'disk' => $disk,
+                    'key_file_path' => $keyFilePath,
+                    'is_file' => is_file($keyFilePath),
+                    'is_readable' => is_readable($keyFilePath),
+                    'bucket' => $bucket,
+                ],
+            ], 500);
+        }
+
+        config()->set("filesystems.disks.{$disk}.throw", true);
+        Storage::forgetDisk($disk);
+        /** @var Filesystem|Cloud|FilesystemAdapter $storage */
+        $storage = Storage::disk($disk);
+        $path = $storage->putFileAs('tapes', $file, $filename);
+
+        if ($path === false) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Upload failed: storage driver returned false.',
+                'data' => [
+                    'disk' => $disk,
+                    'expected_path' => 'tapes/' . $filename,
+                    'key_file_path' => $keyFilePath,
+                    'bucket' => $bucket,
+                ],
+            ], 500);
+        }
+
+        $url = $storage->url($path);
+        $fullPath = $bucket !== '' ? "https://storage.googleapis.com/{$bucket}/{$path}" : $url;
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Image uploaded successfully.',
+            'data' => [
+                'disk' => $disk,
+                'path' => $fullPath,
+                'object_path' => $path,
+                'url' => $url,
+            ],
+        ], 201);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'GCS upload failed.',
+            'error' => $e->getMessage(),
+            'exception' => get_class($e),
+            'disk' => config('filesystems.tape_image_disk', 'public'),
+            'key_file_path' => config("filesystems.disks." . config('filesystems.tape_image_disk', 'public') . ".key_file_path"),
+            'bucket' => config("filesystems.disks." . config('filesystems.tape_image_disk', 'public') . ".bucket"),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ], 500);
+    }
+});

@@ -1,0 +1,43 @@
+name: Deploy production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: order-management-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Order Management to VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+
+    steps:
+      - name: Pull and deploy production
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          command_timeout: 25m
+          script: |
+            set -Eeuo pipefail
+            VPS_PROJECT_DIR='${{ secrets.VPS_PROJECT_DIR }}'
+            test -n "${VPS_PROJECT_DIR}"
+            cd "${VPS_PROJECT_DIR}"
+
+            git restore --source=HEAD --staged --worktree -- public/build
+            git clean -fd -- public/build
+            git pull --ff-only origin main
+
+            test -f bash/cicd_bash.sh
+            chmod +x bash/cicd_bash.sh
+            VPS_PROJECT_DIR="${VPS_PROJECT_DIR}" ./bash/cicd_bash.sh production --already-pulled

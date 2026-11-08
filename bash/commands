@@ -1,0 +1,9 @@
+LOCAL
+
+./bash/cicd_bash.sh local "your commit message"
+
+
+
+CI/CD PRODUCTION
+
+./bash/cicd_bash.sh production
