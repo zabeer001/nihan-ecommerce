@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Product;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\Variant;
@@ -12,12 +13,27 @@ use Illuminate\Http\Request;
 
 class StorefrontProductController extends Controller
 {
+    public function categories(): JsonResponse
+    {
+        return response()->json([
+            'data' => Category::query()->where('active', true)->orderBy('name')->orderBy('id')->get(['id', 'name']),
+        ]);
+    }
+
     public function index(Request $request): JsonResponse
     {
-        $category = $request->validate(['category' => 'sometimes|string|max:100'])['category'] ?? null;
+        $filters = $request->validate([
+            'category' => 'sometimes|string|max:100',
+            'category_id' => 'sometimes|integer|min:1',
+        ]);
+        $category = $filters['category'] ?? null;
+        $categoryId = $filters['category_id'] ?? null;
         $products = $this->published()
-            ->when($category, fn ($query) => $query->whereHas('categories', fn ($categories) => $categories
-                ->where('active', true)->whereRaw('LOWER(name) = ?', [mb_strtolower($category)])))
+            ->when($categoryId !== null || $category !== null, fn ($query) => $query
+                ->whereHas('categories', fn ($categories) => $categories->where('active', true)
+                    ->when($categoryId !== null,
+                        fn ($categories) => $categories->whereKey($categoryId),
+                        fn ($categories) => $categories->whereRaw('LOWER(name) = ?', [mb_strtolower($category)]))))
             ->withMin(['variants as price_cents' => fn ($variants) => $variants->where('active', true)], 'price_cents')
             ->latest('id')->simplePaginate(24);
 

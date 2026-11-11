@@ -24,6 +24,7 @@ Route::get('profile', fn (Request $request) => response()->json([
 
 Route::pattern('role', '[0-9]+');
 
+Route::get('storefront/categories', [StorefrontProductController::class, 'categories']);
 Route::get('storefront/products', [StorefrontProductController::class, 'index']);
 Route::get('storefront/products/{slug}', [StorefrontProductController::class, 'show']);
 

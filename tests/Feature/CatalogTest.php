@@ -305,6 +305,15 @@ it('publishes only active catalog products and photos for their active variants'
     $simplePhoto = Product::findOrFail($simple)->images()->create(['path' => 'products/y-shirt.jpg', 'primary' => true]);
     auth('api')->forgetUser();
 
+    $category = $product->categories()->firstOrFail();
+    $hidden = Category::create(['name' => 'Hidden', 'active' => false]);
+    $product->categories()->attach($hidden);
+    $this->getJson('/api/storefront/categories')->assertOk()
+        ->assertExactJson(['data' => [['id' => $category->id, 'name' => $category->name]]]);
+    $this->getJson("/api/storefront/products?category_id=$category->id")->assertOk()
+        ->assertJsonCount(2, 'data');
+    $this->getJson("/api/storefront/products?category_id=$hidden->id")->assertOk()
+        ->assertJsonCount(0, 'data');
     $this->getJson('/api/storefront/products?category=clothing')->assertOk()
         ->assertJsonCount(2, 'data')
         ->assertJsonPath('data.1.price_cents', 12345)
