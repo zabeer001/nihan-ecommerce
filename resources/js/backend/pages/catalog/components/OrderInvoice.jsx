@@ -1,5 +1,6 @@
 import { request, money } from '../catalogUi';
 export default function OrderInvoice({
+  canUpdate,
   detail,
   run,
   setDetail,
@@ -49,7 +50,7 @@ export default function OrderInvoice({
     </p>
     <div className="flex gap-3 print:hidden">
       <button className="btn" onClick={() => window.print()}>Print invoice</button>
-      {!['Delivered', 'Cancelled'].includes(detail.order.status) && <select className="select select-bordered" value="" onChange={e => {
+      {canUpdate && !['Delivered', 'Cancelled'].includes(detail.order.status) && <select className="select select-bordered" value="" onChange={e => {
         const status = e.target.value;
         if (status) run(async () => {
           await request(`orders/${detail.order.id}/status`, {

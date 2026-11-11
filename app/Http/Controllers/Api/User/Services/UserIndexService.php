@@ -10,12 +10,7 @@ class UserIndexService
 {
     public function handle(Request $request): JsonResponse
     {
-        $query = User::query()
-            ->withCount([
-                'collectionTapes as collection_items_count',
-                'tapes as catalog_entries_count',
-            ])
-            ->latest();
+        $query = User::query()->orderBy('name')->orderBy('id');
 
         if ($request->filled('search')) {
             $search = (string) $request->input('search');
@@ -36,7 +31,10 @@ class UserIndexService
 
         return response()->json([
             'status' => 'success',
-            'data' => $query->paginate(10),
+            'data' => $query->paginate(20, ['id', 'name', 'email', 'role'])->through(fn (User $user) => [
+                ...$user->toArray(),
+                'can_change_role' => $request->user()->canChangeRoleOf($user),
+            ]),
         ]);
     }
 }

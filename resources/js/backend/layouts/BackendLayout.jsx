@@ -4,6 +4,7 @@ import useAuth from '../../shared/hooks/useAuth';
 import Footer from './Footer';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
+import { PermissionsContext } from './PermissionsContext';
 import themeOptions from '../../shared/themeOptions';
 import DownloadPagePdfButton from '../shared/DownloadPagePdfButton';
 
@@ -14,6 +15,7 @@ function isDashboardShowPage(pathname) {
 function BackendLayout({ children }) {
     const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'forest');
     const [currentUser, setCurrentUser] = useState(null);
+    const [profileLoaded, setProfileLoaded] = useState(false);
     const { isAuthenticated, role } = useAuth();
     const showPdfDownload = isDashboardShowPage(window.location.pathname);
 
@@ -28,6 +30,8 @@ function BackendLayout({ children }) {
                 setCurrentUser(payload?.data || null);
             } catch (error) {
                 setCurrentUser(null);
+            } finally {
+                setProfileLoaded(true);
             }
         };
 
@@ -56,6 +60,7 @@ function BackendLayout({ children }) {
     }
 
     return (
+        <PermissionsContext.Provider value={profileLoaded ? currentUser?.permissions ?? [] : null}>
         <main
             data-theme={theme}
             className="min-h-screen bg-base-200 text-base-content"
@@ -83,6 +88,7 @@ function BackendLayout({ children }) {
                 <Sidebar />
             </div>
         </main>
+        </PermissionsContext.Provider>
     );
 }
 

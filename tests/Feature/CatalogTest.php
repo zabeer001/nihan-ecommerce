@@ -38,6 +38,7 @@ it('keeps categories flat and prevents deleting assigned categories', function (
 });
 it('validates variants and retains opening stock history', function () {
     $v = catalogFixture();
+    Product::findOrFail($v->product_id)->update(['status' => 'draft']);
     $url = "/api/admin/products/$v->product_id/variants";
     $data = ['sku' => 'NEW', 'attributes' => ['color' => 'Red'], 'price_cents' => 100, 'active' => true, 'opening_stock' => 4];
     $this->postJson($url, $data)->assertSuccessful();
@@ -127,7 +128,7 @@ it('saves multiple variants with nullable details from the product form', functi
         'corporate_price_cents' => null, 'active' => true,
     ];
     $payload = [
-        'name' => 'Monitor', 'slug' => 'monitor', 'category_ids' => [$category->id], 'status' => 'active',
+        'name' => 'Monitor', 'slug' => 'monitor', 'category_ids' => [$category->id], 'status' => 'draft',
         'brand' => null, 'model' => null, 'color' => null, 'unit' => null,
         'product_type' => null, 'tracking_type' => null,
         'variants' => [$variant('MON-BLACK', 'Black'), $variant('MON-WHITE', 'White')],
@@ -165,4 +166,159 @@ it('archives products without deleting variants or their stock history', functio
         ->assertSuccessful()->assertJsonPath('status', 'success');
     $this->assertDatabaseHas('products', ['id' => $variant->product_id, 'status' => 'draft']);
     $this->assertDatabaseHas('variants', ['id' => $variant->id, 'active' => false, 'stock' => 5]);
+});
+
+function stagedCatalogPhotos($test, int $count, ?int $productId = null): array
+{
+    $url = '/api/admin/products'.($productId ? "/$productId" : '').'/image-uploads';
+
+    return array_map(function (int $index) use ($test, $url) {
+        $upload = $test->post($url, ['image' => UploadedFile::fake()->image("photo-$index.jpg")], ['Accept' => 'application/json'])
+            ->assertCreated()->json('upload_id');
+
+        return ['upload_id' => $upload, 'primary' => $index === 0];
+    }, range(0, $count - 1));
+}
+
+it('saves a simple product with one stock SKU and a product photo gallery', function () {
+    Storage::fake('public');
+    $category = Category::create(['name' => 'Clothing']);
+    $payload = ['name' => 'Y-shirt', 'slug' => 'y-shirt', 'category_ids' => [$category->id], 'status' => 'active'];
+    $id = $this->postJson('/api/admin/products', [
+        ...$payload, 'gallery' => ['items' => stagedCatalogPhotos($this, 5)],
+    ])->assertCreated()->json('data.id');
+
+    $details = $this->getJson("/api/admin/products/$id")->assertSuccessful()
+        ->assertJsonCount(1, 'data.variants')
+        ->assertJsonCount(0, 'data.variants.0.images')
+        ->assertJsonCount(5, 'data.images')
+        ->assertJsonPath('data.images.0.primary', true)
+        ->assertJsonPath('data.images.4.primary', false)
+        ->json('data');
+    expect(Variant::where('product_id', $id)->sole()->attributes)->toBe([]);
+
+    $items = array_map(fn ($photo) => ['id' => $photo['id'], 'primary' => false], array_slice($details['images'], 1));
+    $this->putJson("/api/admin/products/$id", [...$payload, 'gallery' => [
+        'items' => $items,
+        'removed_ids' => [$details['images'][0]['id']],
+    ]])->assertSuccessful();
+    $this->getJson("/api/admin/products/$id")->assertJsonCount(4, 'data.images')->assertJsonPath('data.images.0.primary', false);
+});
+
+it('isolates variant galleries and retries staged photos after an incomplete save', function () {
+    Storage::fake('public');
+    $category = Category::create(['name' => 'Clothing']);
+    $variant = fn ($sku, $size, $design) => [
+        'sku' => $sku, 'name' => "$size / $design", 'attributes' => ['size' => $size, 'design' => $design],
+        'price_cents' => 1200, 'active' => true,
+    ];
+    $variants = [$variant('Z-M-LUFFY', 'M', 'Luffy'), $variant('Z-L-NAMI', 'L', 'Nami')];
+    $payload = ['name' => 'Z-shirt', 'slug' => 'z-shirt', 'category_ids' => [$category->id], 'status' => 'draft', 'variants' => $variants];
+    $id = $this->postJson('/api/admin/products', $payload)->assertCreated()->json('data.id');
+    $url = "/api/admin/products/$id";
+
+    // Existing product-level uploads still appear in the shared gallery.
+    $shared = $this->post($url.'/images', [
+        'image' => UploadedFile::fake()->image('shared.jpg'), 'primary' => true, 'position' => 0,
+    ], ['Accept' => 'application/json'])->assertSuccessful()->json('id');
+
+    foreach ($this->getJson($url)->json('data.variants') as $index => $saved) {
+        $payload['variants'][$index]['id'] = $saved['id'];
+    }
+    $payload['status'] = 'active';
+    $payload['variants'][0]['gallery'] = ['items' => stagedCatalogPhotos($this, 4, $id)];
+    $this->putJson($url, $payload)->assertUnprocessable()->assertJsonValidationErrors('variants.1.gallery');
+    $this->getJson($url)->assertJsonPath('data.product.status', 'draft')->assertJsonCount(0, 'data.variants.0.images');
+
+    $payload['variants'][1]['gallery'] = ['items' => stagedCatalogPhotos($this, 2, $id)];
+    $this->putJson($url, $payload)->assertSuccessful();
+    $saved = $this->getJson($url)
+        ->assertJsonCount(1, 'data.images')->assertJsonPath('data.images.0.id', $shared)
+        ->assertJsonCount(4, 'data.variants.0.images')->assertJsonPath('data.variants.0.images.0.primary', true)
+        ->assertJsonCount(2, 'data.variants.1.images')->assertJsonPath('data.variants.1.images.0.primary', true)
+        ->json('data.variants');
+
+    $luffy = $saved[0]['images'];
+    $nami = $saved[1]['images'];
+    unset($payload['variants'][1]['gallery']);
+    $items = array_map(fn ($photo) => ['id' => $photo['id'], 'primary' => false], array_reverse(array_slice($luffy, 1)));
+    $payload['variants'][0]['gallery'] = ['items' => $items, 'removed_ids' => [$luffy[0]['id']]];
+    $this->putJson($url, $payload)->assertUnprocessable()->assertJsonValidationErrors('variants.0.gallery');
+
+    $payload['variants'][0]['gallery']['items'][0]['id'] = $nami[1]['id'];
+    $this->putJson($url, $payload)->assertUnprocessable()->assertJsonValidationErrors('variants.0.gallery');
+    $payload['variants'][0]['gallery']['items'] = [...stagedCatalogPhotos($this, 1, $id), ...$items];
+    $this->putJson($url, $payload)->assertSuccessful();
+    $this->getJson($url)
+        ->assertJsonPath('data.variants.0.images.1.id', $luffy[3]['id'])
+        ->assertJsonPath('data.variants.1.images', $nami)
+        ->assertJsonPath('data.images.0.id', $shared);
+    Storage::disk('public')->assertMissing($luffy[0]['path']);
+});
+
+it('rejects invalid and expired staged files and uploads staged for another product', function () {
+    Storage::fake('public');
+    $variant = catalogFixture();
+    $categoryId = Product::findOrFail($variant->product_id)->categories()->first()->id;
+    $this->post('/api/admin/products/image-uploads', [
+        'image' => UploadedFile::fake()->create('not-a-photo.txt'),
+    ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('image');
+
+    $payload = ['name' => 'Simple', 'slug' => 'simple', 'category_ids' => [$categoryId], 'status' => 'active'];
+    $this->postJson('/api/admin/products', [
+        ...$payload, 'gallery' => ['items' => stagedCatalogPhotos($this, 1, $variant->product_id)],
+    ])->assertUnprocessable()->assertJsonValidationErrors('gallery');
+
+    $photos = stagedCatalogPhotos($this, 1);
+    $this->travel(24)->hours();
+    $this->postJson('/api/admin/products', [...$payload, 'gallery' => ['items' => $photos]])
+        ->assertUnprocessable()->assertJsonValidationErrors('gallery');
+    $this->artisan('catalog:prune-image-uploads')->assertSuccessful();
+    $this->assertDatabaseCount('product_image_uploads', 0);
+    expect(Storage::disk('public')->allFiles())->toBe([]);
+    $this->travelBack();
+});
+
+it('publishes only active catalog products and photos for their active variants', function () {
+    $luffy = catalogFixture();
+    $product = Product::findOrFail($luffy->product_id);
+    $luffy->update(['name' => 'M / Luffy', 'purchase_price_cents' => 1000]);
+    $nami = $product->variants()->create([
+        'sku' => 'SHIRT-L', 'name' => 'L / Nami', 'attributes' => ['size' => 'L'],
+        'combination' => hash('sha256', 'nami'), 'price_cents' => 2000, 'active' => false,
+    ]);
+    $photo = fn ($path, $variantId = null, $primary = false) => \App\Models\ProductImage::create([
+        'product_id' => $product->id, 'variant_id' => $variantId, 'path' => $path, 'primary' => $primary,
+    ]);
+    $shared = $photo('products/shared.jpg');
+    $extra = $photo('products/luffy-extra.jpg', $luffy->id);
+    $featured = $photo('products/luffy-featured.jpg', $luffy->id, true);
+    $photo('products/nami.jpg', $nami->id, true);
+    $this->postJson('/api/admin/products', [
+        'name' => 'Draft', 'slug' => 'draft', 'status' => 'draft',
+        'category_ids' => [$product->categories()->first()->id],
+    ])->assertCreated();
+    $simple = $this->postJson('/api/admin/products', [
+        'name' => 'Y-shirt', 'slug' => 'y-shirt', 'status' => 'active',
+        'category_ids' => [$product->categories()->first()->id],
+    ])->assertCreated()->json('data.id');
+    $simplePhoto = Product::findOrFail($simple)->images()->create(['path' => 'products/y-shirt.jpg', 'primary' => true]);
+    auth('api')->forgetUser();
+
+    $this->getJson('/api/storefront/products?category=clothing')->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.1.price_cents', 12345)
+        ->assertJsonPath('data.1.image.id', $shared->id);
+    $this->getJson('/api/storefront/products/shirt')->assertOk()
+        ->assertJsonPath('data.has_variants', true)
+        ->assertJsonCount(1, 'data.variants')
+        ->assertJsonPath('data.variants.0.label', 'M / Luffy')
+        ->assertJsonPath('data.variants.0.images.0.id', $featured->id)
+        ->assertJsonPath('data.variants.0.images.1.id', $extra->id)
+        ->assertJsonMissingPath('data.variants.0.purchase_price_cents')
+        ->assertJsonPath('data.images.0.id', $shared->id);
+    $this->getJson('/api/storefront/products/y-shirt')->assertOk()
+        ->assertJsonPath('data.has_variants', false)
+        ->assertJsonPath('data.images.0.id', $simplePhoto->id);
+    $this->getJson('/api/storefront/products/draft')->assertNotFound();
 });

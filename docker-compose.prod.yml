@@ -1,8 +1,8 @@
-name: order-management-jubayer
+name: nihan_ecommerce
 
 services:
     laravel.test2:
-        container_name: nihan_ecommerce_rycto_laravel
+        container_name: nihan_ecommerce_laravel
         build:
             context: ./vendor/laravel/sail/runtimes/8.5
             dockerfile: Dockerfile
@@ -29,7 +29,7 @@ services:
             - mysql
 
     mysql:
-        container_name: nihan_ecommerce_rycto_mysql
+        container_name: nihan_ecommerce_mysql
         image: 'mysql:8.4'
         restart: unless-stopped
         environment:
@@ -52,7 +52,7 @@ services:
             timeout: 5s
 
     phpmyadmin:
-        container_name: nihan_ecommerce_rycto_phpmyadmin
+        container_name: nihan_ecommerce_phpmyadmin
         image: 'phpmyadmin:latest'
         restart: unless-stopped
         ports:

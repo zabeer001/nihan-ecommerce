@@ -5,10 +5,8 @@ namespace App\Http\Controllers\Api\Product\Services;
 use App\Http\Controllers\Api\Concerns\ApiResponse;
 use App\Models\Product;
 use App\Models\ProductImage;
-use App\Models\Variant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class ProductShowService
 {
@@ -21,8 +19,12 @@ class ProductShowService
 
         return $this->successResponse([
             'product' => $product,
-            'variants' => Variant::where('product_id', $id)->get(),
-            'images' => ProductImage::where('product_id', $id)->orderBy('position')->get()->map(fn ($image) => $image->toArray() + ['url' => Storage::disk('public')->url($image->path)]),
+            'variants' => $product->variants()->with('images')->get()->map(fn ($variant) => [
+                ...$variant->attributesToArray(),
+                'images' => $variant->images->map->withUrl(),
+            ]),
+            'images' => ProductImage::where('product_id', $id)->whereNull('variant_id')
+                ->orderBy('position')->orderBy('id')->get()->map->withUrl(),
         ], 'Product fetched successfully.');
     }
 }

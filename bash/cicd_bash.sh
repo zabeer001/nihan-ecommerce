@@ -20,14 +20,10 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_PROJECT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 ENV_FILE="${SCRIPT_PROJECT_DIR}/.env"
 
-if [[ ! -f "${ENV_FILE}" ]]; then
-    echo "Missing ${ENV_FILE}. Create it before publishing or deploying." >&2
-    exit 1
-fi
-
 read_env_value() {
     local key="$1"
     local value
+    [[ -f "${ENV_FILE}" ]] || return 0
     value="$(awk -v target="${key}" 'index($0, target "=") == 1 { print substr($0, length(target) + 2); exit }' "${ENV_FILE}")"
     value="${value%$'\r'}"
     if [[ "${value}" == \"*\" && "${value}" == *\" ]]; then
@@ -37,20 +33,6 @@ read_env_value() {
     fi
     printf '%s' "${value}"
 }
-
-VPS_PROJECT_DIR="${VPS_PROJECT_DIR:-$(read_env_value VPS_PROJECT_DIR)}"
-LOCAL_CONTAINER="${LOCAL_CONTAINER:-order_management_rycto_laravel}"
-VPS_APP_CONTAINER="${VPS_APP_CONTAINER:-$(read_env_value VPS_APP_CONTAINER)}"
-
-if [[ -z "${VPS_PROJECT_DIR}" ]]; then
-    echo "VPS_PROJECT_DIR is not configured in .env or the environment." >&2
-    exit 1
-fi
-
-if [[ -z "${VPS_APP_CONTAINER}" ]]; then
-    echo "VPS_APP_CONTAINER is not configured in .env or the environment." >&2
-    exit 1
-fi
 
 case "${MODE}" in
     local)
@@ -64,7 +46,7 @@ case "${MODE}" in
         printf '%s\n' \
             "Usage:" \
             "  $0 local \"commit message\"" \
-            "  $0 production"
+            "  $0 production [--already-pulled]"
         exit 0
         ;;
     *)
@@ -80,11 +62,25 @@ if [[ "${MODE}" == "production" && -n "${PULL_LATEST}" && "${PULL_LATEST}" != "-
 fi
 
 PROJECT_DIR="${SCRIPT_PROJECT_DIR}"
-if [[ "${MODE}" == "production" && -d "${VPS_PROJECT_DIR}" ]]; then
-    PROJECT_DIR="${VPS_PROJECT_DIR}"
+if [[ "${MODE}" == "production" ]]; then
+    VPS_PROJECT_DIR="${VPS_PROJECT_DIR:-$(read_env_value VPS_PROJECT_DIR)}"
+    if [[ -z "${VPS_PROJECT_DIR}" && "${PULL_LATEST}" == "--already-pulled" ]]; then
+        VPS_PROJECT_DIR="${SCRIPT_PROJECT_DIR}"
+    fi
+    if [[ -z "${VPS_PROJECT_DIR}" ]]; then
+        echo "Set VPS_PROJECT_DIR to the production checkout path in .env." >&2
+        exit 1
+    fi
+    if [[ -d "${VPS_PROJECT_DIR}" ]]; then
+        PROJECT_DIR="${VPS_PROJECT_DIR}"
+    elif [[ "${PULL_LATEST}" == "--already-pulled" ]]; then
+        echo "Production checkout does not exist: ${VPS_PROJECT_DIR}" >&2
+        exit 1
+    fi
 fi
 
 cd "${PROJECT_DIR}"
+ENV_FILE="${PROJECT_DIR}/.env"
 
 if [[ ! -f "${PROJECT_DIR}/.env" ]]; then
     echo "Missing ${PROJECT_DIR}/.env. Create it before deploying." >&2
@@ -94,30 +90,28 @@ fi
 # When launched from a workstation, production mode connects to the VPS.
 # On the VPS, the target directory exists and deployment continues locally.
 if [[ "${MODE}" == "production" && ! -d "${VPS_PROJECT_DIR}" ]]; then
-    command -v sshpass >/dev/null 2>&1 || { echo "sshpass is required for password-based deployment." >&2; exit 1; }
     ROOT_ACCESS_VALUE="${VPS_ROOT_ACCESS:-$(read_env_value VPS_ROOT_ACCESS)}"
     DEPLOY_PASSWORD="${VPS_PASSWORD:-$(read_env_value VPS_PASSWORD)}"
     SSH_TARGET="${ROOT_ACCESS_VALUE#ssh }"
+    SSH_COMMAND=(ssh -o StrictHostKeyChecking=accept-new)
 
     if [[ ! "${SSH_TARGET}" =~ ^[A-Za-z0-9._-]+@[A-Za-z0-9._:-]+$ ]]; then
-        echo "VPS_ROOT_ACCESS must use the format: ssh user@host" >&2
+        echo 'Set VPS_ROOT_ACCESS in .env to "ssh user@host" for direct deployment.' >&2
         exit 1
     fi
-    if [[ -z "${DEPLOY_PASSWORD}" ]]; then
-        echo "VPS_PASSWORD is not configured in .env." >&2
-        exit 1
+    if [[ -n "${DEPLOY_PASSWORD}" ]]; then
+        command -v sshpass >/dev/null 2>&1 || { echo "sshpass is required for password-based deployment." >&2; exit 1; }
+        export SSHPASS="${DEPLOY_PASSWORD}"
+        SSH_COMMAND=(sshpass -e "${SSH_COMMAND[@]}")
     fi
 
+    VPS_APP_CONTAINER="${VPS_APP_CONTAINER:-$(read_env_value VPS_APP_CONTAINER)}"
     printf -v QUOTED_REMOTE_DIR '%q' "${VPS_PROJECT_DIR}"
     printf -v QUOTED_APP_CONTAINER '%q' "${VPS_APP_CONTAINER}"
     REMOTE_COMMAND="cd ${QUOTED_REMOTE_DIR} && git restore --source=HEAD --staged --worktree -- public/build && git clean -fd -- public/build && git pull --ff-only origin main && { test -f bash/cicd_bash.sh || { echo 'bash/cicd_bash.sh is not present on origin/main. Run the local publish command first.' >&2; exit 1; }; } && chmod +x bash/cicd_bash.sh && VPS_PROJECT_DIR=${QUOTED_REMOTE_DIR} VPS_APP_CONTAINER=${QUOTED_APP_CONTAINER} ./bash/cicd_bash.sh production --already-pulled"
 
     echo "==> Connecting to the production server and starting deployment"
-    SSHPASS="${DEPLOY_PASSWORD}" sshpass -e ssh \
-        -o StrictHostKeyChecking=accept-new \
-        "${SSH_TARGET}" \
-        "${REMOTE_COMMAND}"
-    exit $?
+    exec "${SSH_COMMAND[@]}" "${SSH_TARGET}" "${REMOTE_COMMAND}"
 fi
 
 command -v docker >/dev/null 2>&1 || { echo "Docker is required." >&2; exit 1; }
@@ -127,6 +121,10 @@ app() {
 }
 
 require_running_container() {
+    if [[ -z "${APP_CONTAINER}" ]]; then
+        echo "No Laravel container found for Compose service ${APP_SERVICE}. Start the app service first." >&2
+        exit 1
+    fi
     if [[ "$(docker inspect -f '{{.State.Running}}' "${APP_CONTAINER}" 2>/dev/null || true)" != "true" ]]; then
         echo "The Docker container ${APP_CONTAINER} is not running." >&2
         exit 1
@@ -173,13 +171,14 @@ step() {
 }
 
 if [[ "${MODE}" == "local" ]]; then
-    APP_CONTAINER="${LOCAL_CONTAINER}"
-
     if [[ "$(git branch --show-current)" != "main" ]]; then
         echo "Local publishing must be run from the main branch." >&2
         exit 1
     fi
 
+    APP_SERVICE="laravel.test"
+    APP_CONTAINER="${LOCAL_CONTAINER:-$(read_env_value LOCAL_CONTAINER)}"
+    APP_CONTAINER="${APP_CONTAINER:-$(docker compose ps -q "${APP_SERVICE}")}"
     require_running_container
 
     step "Building production frontend assets"
@@ -211,8 +210,6 @@ if [[ "${MODE}" == "local" ]]; then
     exit 0
 fi
 
-APP_CONTAINER="${VPS_APP_CONTAINER}"
-
 if [[ "${PULL_LATEST}" != "--already-pulled" ]]; then
     step "Removing stale production frontend assets"
     git restore --source=HEAD --staged --worktree -- public/build
@@ -222,10 +219,13 @@ if [[ "${PULL_LATEST}" != "--already-pulled" ]]; then
     git pull --ff-only origin main
 fi
 
+APP_SERVICE="laravel.test2"
+APP_CONTAINER="${VPS_APP_CONTAINER:-$(read_env_value VPS_APP_CONTAINER)}"
+APP_CONTAINER="${APP_CONTAINER:-$(docker compose -f docker-compose.prod.yml ps -q "${APP_SERVICE}")}"
+require_running_container
+
 step "Starting production database"
 start_production_database
-
-require_running_container
 
 if ! app getent hosts mysql >/dev/null 2>&1; then
     echo "The Laravel container cannot resolve the MySQL service hostname." >&2

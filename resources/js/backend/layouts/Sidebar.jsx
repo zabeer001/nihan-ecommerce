@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { usePage } from '@inertiajs/react';
 import Link from '@/shared/CachedLink';
-import useAuth from '../../shared/hooks/useAuth';
+import { usePermissions } from './PermissionsContext';
 import {
     LayoutDashboard,
     ClipboardList,
@@ -17,12 +17,13 @@ import {
 
 const menuItems = [
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { label: 'Categories', href: '/dashboard/categories', icon: ClipboardList, roles: ['admin', 'superadmin'] },
-    { label: 'Products', href: '/dashboard/products', icon: PackageSearch, roles: ['admin', 'superadmin'] },
-    { label: 'Inventory', href: '/dashboard/inventory', icon: WalletCards, roles: ['admin', 'superadmin'] },
-    { label: 'Orders', href: '/dashboard/orders', icon: Receipt, roles: ['admin', 'superadmin'] },
-   
-
+    { label: 'Categories', href: '/dashboard/categories', icon: ClipboardList, permissions: ['categories.view', 'categories.create'] },
+    { label: 'Products', href: '/dashboard/products', icon: PackageSearch, permissions: ['products.view', 'products.create'] },
+    { label: 'Inventory', href: '/dashboard/inventory', icon: WalletCards, permissions: ['inventory.view'] },
+    { label: 'Orders', href: '/dashboard/orders', icon: Receipt, permissions: ['orders.view', 'orders.create'] },
+    { label: 'Customers', href: '/dashboard/customers', icon: UsersRound, permissions: ['customers.view', 'customers.create'] },
+    { label: 'Users', href: '/dashboard/users', icon: UsersRound, permissions: ['roles.manage'] },
+    { label: 'Roles', href: '/dashboard/roles', icon: Settings, permissions: ['roles.manage'] },
 ];
 
 const SIDEBAR_DROPDOWN_STORAGE_KEY = 'backend_sidebar_open_dropdowns';
@@ -61,7 +62,7 @@ function mergeOpenDropdowns(current, activeDropdowns) {
 
 function Sidebar() {
     const { url } = usePage();
-    const { role } = useAuth();
+    const { can } = usePermissions();
     const currentPath = pathname(url);
     const [openDropdowns, setOpenDropdowns] = useState(() => {
         try {
@@ -70,7 +71,7 @@ function Sidebar() {
             return {};
         }
     });
-    const visibleItems = useMemo(() => menuItems.filter((item) => !item.roles || item.roles.includes(role)), [role]);
+    const visibleItems = useMemo(() => menuItems.filter((item) => !item.permissions || item.permissions.some(can)), [can]);
 
     useEffect(() => {
         const activeDropdowns = visibleItems

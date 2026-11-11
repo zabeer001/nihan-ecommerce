@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Product\Services\Concerns;
 
+use App\Http\Controllers\Api\Product\Services\ProductGalleryService;
 use App\Models\Product;
 use App\Models\Variant;
 use Illuminate\Http\Request;
@@ -19,7 +20,7 @@ trait HandlesProduct
 
         return DB::transaction(function () use ($validated, $request, $id) {
             $product = $id ? Product::whereKey($id)->lockForUpdate()->firstOrFail() : new Product;
-            $product->fill(collect($validated)->except(['sku', 'price_cents', 'opening_stock', 'category_ids', 'variants'])->all())->save();
+            $product->fill(collect($validated)->except(['sku', 'price_cents', 'opening_stock', 'category_ids', 'variants', 'gallery'])->all())->save();
 
             if (! $product->product_code) {
                 $product->update(['product_code' => 'PRD-'.Str::upper(Str::random(12))]);
@@ -27,17 +28,21 @@ trait HandlesProduct
 
             $product->categories()->sync($validated['category_ids']);
 
-            if (isset($validated['variants'])) {
-                foreach ($validated['variants'] as $index => $variantData) {
-                    try {
-                        $this->variantService->save($variantData, $product->id, $variantData['id'] ?? null, $request->user()->id);
-                    } catch (ValidationException $exception) {
-                        $errors = [];
-                        foreach ($exception->errors() as $field => $messages) {
-                            $errors["variants.$index.$field"] = $messages;
-                        }
-                        throw ValidationException::withMessages($errors);
+            $userId = $request->user()->id;
+            $submittedRows = [];
+            foreach ($validated['variants'] ?? [] as $index => $variantData) {
+                try {
+                    $variant = $this->variantService->save($variantData, $product->id, $variantData['id'] ?? null, $userId);
+                } catch (ValidationException $exception) {
+                    $errors = [];
+                    foreach ($exception->errors() as $field => $messages) {
+                        $errors["variants.$index.$field"] = $messages;
                     }
+                    throw ValidationException::withMessages($errors);
+                }
+                $submittedRows[$variant->id] = $index;
+                if (isset($variantData['gallery'])) {
+                    $this->galleries->sync($product, $variant, $variantData['gallery'], $userId, $id, "variants.$index.gallery");
                 }
             }
 
@@ -59,6 +64,11 @@ trait HandlesProduct
                     $request->user()->id,
                 );
             }
+
+            if (isset($validated['gallery'])) {
+                $this->galleries->sync($product, null, $validated['gallery'], $userId, $id, 'gallery');
+            }
+            $this->galleries->validateActiveVariants($product, $submittedRows);
 
             return $product->load(['categories', 'variants']);
         });
@@ -95,6 +105,8 @@ trait HandlesProduct
             'sku' => ['nullable', 'string', 'max:255', Rule::unique('variants', 'sku')],
             'price_cents' => 'sometimes|integer|min:0|max:100000000',
             'opening_stock' => 'sometimes|integer|min:0|max:1000000',
+            ...ProductGalleryService::rules('gallery'),
+            ...ProductGalleryService::rules('variants.*.gallery'),
         ];
     }
 }

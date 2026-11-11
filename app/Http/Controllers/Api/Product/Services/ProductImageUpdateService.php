@@ -18,10 +18,12 @@ class ProductImageUpdateService
         ]);
 
         return DB::transaction(function () use ($id, $validated) {
-            $image = ProductImage::findOrFail($id);
-            Product::whereKey($image->product_id)->lockForUpdate()->firstOrFail();
+            $shared = ProductImage::whereNull('variant_id');
+            $productId = (clone $shared)->findOrFail($id)->product_id;
+            Product::whereKey($productId)->lockForUpdate()->firstOrFail();
+            $image = (clone $shared)->lockForUpdate()->findOrFail($id);
             if ($validated['primary']) {
-                ProductImage::where('product_id', $image->product_id)->update(['primary' => false]);
+                $shared->where('product_id', $productId)->whereKeyNot($id)->update(['primary' => false]);
             } elseif ($image->primary) {
                 throw ValidationException::withMessages(['primary' => 'Choose another primary image first.']);
             }

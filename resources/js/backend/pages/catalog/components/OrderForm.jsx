@@ -1,5 +1,6 @@
 import { request, money, cents, Field, input } from '../catalogUi';
 export default function OrderForm({
+  canView,
   order,
   setOrder,
   run,
@@ -25,8 +26,10 @@ export default function OrderForm({
         }
       });
       setOrder(null);
-      setDetail(await request(`orders/${result.id}`));
-      await load();
+      if (canView) {
+        setDetail(await request(`orders/${result.id}`));
+        await load();
+      }
     });
   }}>
     <h2 className="text-xl font-bold">New COD order</h2>
@@ -38,7 +41,7 @@ export default function OrderForm({
     </Field>)}
     <div className="flex gap-2">
       <input className={input} placeholder="Search SKU or product" value={variantSearch} onChange={e => setVariantSearch(e.target.value)} />
-      <button type="button" className="btn" onClick={() => run(async () => setOptions((await request(`variants?search=${encodeURIComponent(variantSearch)}`)).data))}>Find variants</button>
+      <button type="button" className="btn" onClick={() => run(async () => setOptions((await request(`orders/variants?search=${encodeURIComponent(variantSearch)}`)).data))}>Find variants</button>
     </div>
     <select className="select select-bordered w-full" value="" onChange={e => {
       const v = options.find(v => v.id === Number(e.target.value));

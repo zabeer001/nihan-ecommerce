@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import CatalogForm from './CatalogForm';
 
-export default function CategoryModal({ form, categories, save, change, setForm, busy, error }) {
+export default function CategoryModal({ form, save, change, setForm, busy, error }) {
   const dialogRef = useRef(null);
   const close = () => {
     if (!busy) setForm(null);
@@ -37,7 +37,7 @@ export default function CategoryModal({ form, categories, save, change, setForm,
         </div>
         {error && <p role="alert" className="alert alert-error mb-4">{error}</p>}
         <fieldset disabled={busy}>
-          <CatalogForm form={form} section="categories" categories={categories}
+          <CatalogForm form={form} section="categories"
             save={save} change={change} setForm={close} />
         </fieldset>
         {busy && <p role="status" className="mt-3">Saving…</p>}

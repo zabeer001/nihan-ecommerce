@@ -19,4 +19,10 @@ class Product extends Model
     {
         return $this->belongsToMany(Category::class);
     }
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(ProductImage::class)->whereNull('variant_id')
+            ->orderByDesc('primary')->orderBy('position')->orderBy('id');
+    }
 }

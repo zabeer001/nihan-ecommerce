@@ -22,7 +22,7 @@ const queryClient = new QueryClient({
 
 const frontendPages = import.meta.glob('./frontend/pages/**/*.jsx');
 const commonPages = import.meta.glob('./common/**/*.jsx');
-const backendPages = import.meta.glob(['./backend/pages/dashboard/DashBoardPage.jsx', './backend/pages/catalog/ManagementPage.jsx', './backend/pages/catalog/ProductFormPage.jsx']);
+const backendPages = import.meta.glob(['./backend/pages/dashboard/DashBoardPage.jsx', './backend/pages/catalog/ManagementPage.jsx', './backend/pages/catalog/ProductFormPage.jsx', './backend/pages/customers/CustomersPage.jsx', './backend/pages/users/UsersPage.jsx', './backend/pages/roles/RolesPage.jsx']);
 
 function resolveCommonLayout(pageNode) {
     const explicitContext = pageNode?.props?.layoutContext;

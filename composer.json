@@ -18,6 +18,7 @@
         "php-open-source-saver/jwt-auth": "^2.8",
         "phpoffice/phpspreadsheet": "^5.0",
         "spatie/laravel-google-cloud-storage": "^2.3",
+        "spatie/laravel-permission": "^6.0",
         "symfony/string": "^7.2",
         "tightenco/ziggy": "^2.0"
     },

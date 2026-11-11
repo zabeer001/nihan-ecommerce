@@ -1,8 +1,9 @@
 import { Field, input } from '../catalogUi';
 import CategorySelect from './CategorySelect';
 import ProductVariantsForm from './ProductVariantsForm';
+import ProductGalleryForm from './ProductGalleryForm';
 
-export default function ProductDetailsForm({ form, categories, change, save, manageImage, busy }) {
+export default function ProductDetailsForm({ form, categories, change, save, galleryError, busy }) {
   return <form onSubmit={save} className="space-y-6">
     <section className="rounded-box border border-base-300 bg-base-100 p-6 space-y-5">
       <div><h2 className="text-xl font-bold">Product Information</h2><p className="text-sm text-base-content/60">Basic identity, classification, and inventory settings.</p></div>
@@ -24,24 +25,11 @@ export default function ProductDetailsForm({ form, categories, change, save, man
         <Field label="Slug"><input className={input} value={form.slug} placeholder="Generated from name if empty" onChange={event => change('slug', event.target.value)} /></Field>
       </div>
     </section>
-    <ProductVariantsForm variants={form.variants} change={change} />
+    <ProductVariantsForm form={form} change={change} galleryError={galleryError} />
     <section className="rounded-box border border-base-300 bg-base-100 p-6 space-y-5">
-      <h2 className="text-xl font-bold">Description &amp; Images</h2>
-      <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Description"><textarea className="textarea textarea-bordered min-h-40 w-full" value={form.description || ''} onChange={event => change('description', event.target.value)} /></Field>
-        <div className="space-y-4">
-          <Field label="Featured image"><input className="file-input file-input-bordered w-full" type="file" accept="image/jpeg,image/png,image/webp" onChange={event => change('featuredImage', event.target.files[0] || null)} /></Field>
-          <Field label="Additional images"><input className="file-input file-input-bordered w-full" type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={event => change('additionalImages', Array.from(event.target.files))} /></Field>
-          <p className="text-xs text-base-content/60">JPG, PNG or WebP; up to 5 MB per image.</p>
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-4">{form.images.map(image => <article key={image.id} className="space-y-2">
-        <img src={image.url} alt={form.name} className="size-28 rounded object-cover" />
-        <p>{image.primary ? 'Featured' : 'Gallery'} · Position {image.position}</p>
-        <label className="text-sm">Position <input aria-label="Image position" type="number" min="0" className="input input-bordered w-20" defaultValue={image.position} onBlur={event => { const position = Number(event.target.value); if (position !== image.position) manageImage(image, 'position', position); }} /></label>
-        {!image.primary && <button type="button" className="btn btn-xs" onClick={() => manageImage(image, 'primary')}>Set featured</button>}
-        <button type="button" className="btn btn-xs btn-error" onClick={() => manageImage(image, 'delete')}>Remove</button>
-      </article>)}</div>
+      <Field label="Description"><textarea className="textarea textarea-bordered min-h-40 w-full" value={form.description || ''} onChange={event => change('description', event.target.value)} /></Field>
+      <ProductGalleryForm title={form.hasVariants ? 'Shared product photos' : 'Product photos'}
+        gallery={form.gallery} error={galleryError('gallery')} change={gallery => change('gallery', gallery)} />
     </section>
     <div className="flex justify-end gap-3 rounded-box border border-base-300 bg-base-100 p-5">
       <a href="/dashboard/products" className="btn">Cancel</a>

@@ -12,16 +12,18 @@ class ProductImageDeleteService
 {
     public function handle(int $id): Response
     {
-        $image = ProductImage::findOrFail($id);
-        DB::transaction(function () use ($image) {
-            Product::whereKey($image->product_id)->lockForUpdate()->firstOrFail();
+        $shared = ProductImage::whereNull('variant_id');
+        $productId = (clone $shared)->findOrFail($id)->product_id;
+        DB::transaction(function () use ($shared, $productId, $id) {
+            Product::whereKey($productId)->lockForUpdate()->firstOrFail();
+            $image = (clone $shared)->lockForUpdate()->findOrFail($id);
             $image->delete();
             if ($image->primary) {
-                $nextImage = ProductImage::where('product_id', $image->product_id)->orderBy('position')->first();
+                $nextImage = $shared->where('product_id', $productId)->orderBy('position')->orderBy('id')->first();
                 $nextImage?->update(['primary' => true]);
             }
+            DB::afterCommit(fn () => rescue(fn () => Storage::disk('public')->delete($image->path)));
         });
-        Storage::disk('public')->delete($image->path);
 
         return response()->noContent();
     }

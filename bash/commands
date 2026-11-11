@@ -1,9 +1,5 @@
-LOCAL
-
+# Build, commit, and push main. A push to main triggers the GitHub deployment.
 ./bash/cicd_bash.sh local "your commit message"
 
-
-
-CI/CD PRODUCTION
-
+# Deploy manually using the VPS settings in .env.
 ./bash/cicd_bash.sh production

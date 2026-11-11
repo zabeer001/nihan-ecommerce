@@ -15,6 +15,7 @@ class ProductStoreService
     public function __construct(
         private readonly StockMovementService $stockMovements,
         private readonly VariantSaveService $variantService,
+        private readonly ProductGalleryService $galleries,
     ) {}
 
     public function handle(Request $request): JsonResponse
