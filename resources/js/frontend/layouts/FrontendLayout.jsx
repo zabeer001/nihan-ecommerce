@@ -1,14 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import FrontendFooter from './FrontendFooter';
 import FrontendNavbar from './FrontendNavbar';
 import themeOptions from '../../shared/themeOptions';
+import useTheme from '../../shared/hooks/useTheme';
 
 function FrontendLayout({ children }) {
-    const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'forest');
-
-    useEffect(() => {
-        localStorage.setItem('theme', theme);
-    }, [theme]);
+    const [theme, setTheme] = useTheme();
 
     return (
         <main

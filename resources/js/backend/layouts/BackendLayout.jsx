@@ -6,6 +6,7 @@ import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import { PermissionsContext } from './PermissionsContext';
 import themeOptions from '../../shared/themeOptions';
+import useTheme from '../../shared/hooks/useTheme';
 import DownloadPagePdfButton from '../shared/DownloadPagePdfButton';
 
 function isDashboardShowPage(pathname) {
@@ -13,15 +14,11 @@ function isDashboardShowPage(pathname) {
 }
 
 function BackendLayout({ children }) {
-    const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'forest');
+    const [theme, setTheme] = useTheme();
     const [currentUser, setCurrentUser] = useState(null);
     const [profileLoaded, setProfileLoaded] = useState(false);
     const { isAuthenticated, role } = useAuth();
     const showPdfDownload = isDashboardShowPage(window.location.pathname);
-
-    useEffect(() => {
-        localStorage.setItem('theme', theme);
-    }, [theme]);
 
     useEffect(() => {
         const loadProfile = async () => {
