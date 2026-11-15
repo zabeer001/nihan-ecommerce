@@ -18,6 +18,8 @@ export default function ManagementPage({
     [page, setPage] = useState(1),
     [last, setLast] = useState(1),
     [search, setSearch] = useState('');
+  const [reference, setReference] = useState('');
+  const [orderFilters, setOrderFilters] = useState({ reference: '', source: '', status: '' });
   const [form, setForm] = useState(null),
     [detail, setDetail] = useState(null),
     [variant, setVariant] = useState(null),
@@ -32,7 +34,8 @@ export default function ManagementPage({
   const canUpdate = can(section + '.update');
   const canDelete = can(section + '.delete');
   async function load() {
-    const data = await request(`${section === 'inventory' ? 'variants' : section}?page=${page}&search=${encodeURIComponent(search)}`);
+    const params = new URLSearchParams({ page, ...(section === 'orders' ? orderFilters : { search }) });
+    const data = await request(`${section === 'inventory' ? 'variants' : section}?${params}`);
     setRows(data.data || data);
     setLast(data.last_page || 1);
   }
@@ -54,10 +57,13 @@ export default function ManagementPage({
     setHistory(null);
     setOrder(null);
     setVariant(null);
+    setSearch('');
+    setReference('');
+    setOrderFilters({ reference: '', source: '', status: '' });
   }, [section]);
   useEffect(() => {
     if (canView) run(load);
-  }, [section, page, search, canView]);
+  }, [section, page, search, canView, orderFilters]);
   const change = (key, value) => setForm(f => ({
     ...f,
     [key]: value
@@ -104,16 +110,47 @@ export default function ManagementPage({
     <fieldset disabled={busy} className="space-y-5">
  {form && section === 'categories' && (form.id ? canUpdate : canCreate) && <CategoryModal form={form} save={save} change={change} setForm={setForm} busy={busy} error={error} />}
  {canView && !order && <div className="print:hidden">
-        <input className={input} placeholder="Search products or SKU" value={search} onChange={e => {
+        {section === 'orders' ? <div className="flex flex-wrap items-end gap-3">
+          <form className="flex items-end gap-2" onSubmit={e => {
+            e.preventDefault();
+            setPage(1);
+            setOrderFilters(filters => ({ ...filters, reference: reference.trim().replace(/^#/, '') }));
+          }}>
+            <label className="grid gap-1">Order reference
+              <input className={input} inputMode="numeric" pattern="#?[0-9]+" value={reference} onChange={e => setReference(e.target.value)} />
+            </label>
+            <button className="btn" type="submit">Find order</button>
+          </form>
+          <label className="grid gap-1">Source
+            <select className="select select-bordered" value={orderFilters.source} onChange={e => {
+              setPage(1);
+              setOrderFilters({ ...orderFilters, source: e.target.value });
+            }}>
+              <option value="">All sources</option>
+              <option value="storefront">Storefront</option>
+              <option value="staff">Staff</option>
+            </select>
+          </label>
+          <label className="grid gap-1">Status
+            <select className="select select-bordered" value={orderFilters.status} onChange={e => {
+              setPage(1);
+              setOrderFilters({ ...orderFilters, status: e.target.value });
+            }}>
+              <option value="">All statuses</option>
+              {['Pending', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled'].map(status => <option key={status}>{status}</option>)}
+            </select>
+          </label>
+        </div> : <input className={input} placeholder="Search products or SKU" value={search} onChange={e => {
           setSearch(e.target.value);
           setPage(1);
-        }} />
+        }} />}
         <div className="overflow-x-auto bg-base-100 rounded-box mt-3">
           <table className="table">
             <thead>
               <tr>
                 <th>ID</th>
                 <th>{section === 'orders' ? 'Customer' : section === 'inventory' ? 'SKU' : 'Name'}</th>
+                {section === 'orders' && <th>Source</th>}
                 <th>Details</th>
                 <th>Actions</th>
               </tr>
@@ -121,6 +158,7 @@ export default function ManagementPage({
             <tbody>{rows.map(row => <tr key={row.id}>
                 <td>{row.id}</td>
                 <td>{row.name || row.sku || row.customer_name}</td>
+                {section === 'orders' && <td>{row.source === 'storefront' ? 'Storefront' : 'Staff'}</td>}
                 <td>{section === 'categories' ? row.active ? 'Active' : 'Inactive' : section === 'products' ? row.status : section === 'inventory' ? `${row.product_name} · Stock ${row.stock} · ${money(row.price_cents)}` : `${row.status} · ${money(row.total_cents)}`}</td>
                 <td className="flex gap-2">{canUpdate && ['categories', 'products'].includes(section) && <button className="btn btn-sm" onClick={() => {
                     if (section === 'products') {

@@ -13,6 +13,10 @@ Route::get('/customers', fn () => Inertia::render('backend/pages/customers/Custo
 Route::get('/users', fn () => Inertia::render('backend/pages/users/UsersPage'));
 Route::get('/roles', fn () => Inertia::render('backend/pages/roles/RolesPage'));
 Route::get('/roles/create', fn () => Inertia::render('backend/pages/roles/RolesPage', ['mode' => 'create']));
+Route::get('/roles/{role}', fn (int $role) => Inertia::render('backend/pages/roles/RolesPage', [
+    'mode' => 'show',
+    'roleId' => $role,
+]))->whereNumber('role');
 Route::get('/roles/{role}/edit', fn (int $role) => Inertia::render('backend/pages/roles/RolesPage', [
     'mode' => 'edit',
     'roleId' => $role,

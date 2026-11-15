@@ -13,9 +13,9 @@ use Illuminate\Http\Request;
 
 class OrderController extends Controller
 {
-    public function orders(OrderIndexService $service): LengthAwarePaginator
+    public function orders(Request $request, OrderIndexService $service): LengthAwarePaginator
     {
-        return $service->handle();
+        return $service->handle($request);
     }
 
     public function order(OrderShowService $service, int $id): array

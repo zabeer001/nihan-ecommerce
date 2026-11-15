@@ -8,7 +8,7 @@ export default function OrderInvoice({
 }) {
   return <article id="order-invoice" className="card bg-base-100 p-6 gap-4">
     <h2 className="text-2xl font-bold">Invoice #{detail.order.id}</h2>
-    <p>{detail.order.created_at} · {detail.order.status} · COD · BDT</p>
+    <p>{detail.order.created_at} · {detail.order.status} · COD · BDT · {detail.order.source === 'storefront' ? 'Storefront' : 'Staff'}</p>
     <p>
       {detail.order.customer_name}
       <br />
@@ -75,7 +75,7 @@ export default function OrderInvoice({
     </div>
     <div className="print:hidden">
       <h3 className="font-bold">Status history</h3>
-      {detail.history.map(h => <p key={h.id}>{h.created_at} · {h.status} · Staff #{h.user_id}</p>)}
+      {detail.history.map(h => <p key={h.id}>{h.created_at} · {h.status} · {h.user_id === null ? 'Storefront' : `Staff #${h.user_id}`}</p>)}
     </div>
   </article>;
 }

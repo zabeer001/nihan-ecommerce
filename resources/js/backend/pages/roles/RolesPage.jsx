@@ -6,7 +6,9 @@ import { Field, input, request } from '../catalog/catalogUi';
 const newRole = { name: '', permission_ids: [] };
 
 export default function RolesPage({ mode, roleId }) {
-    const isFormPage = Boolean(mode);
+    const isListPage = !mode;
+    const isFormPage = mode === 'create' || mode === 'edit';
+    const isShowPage = mode === 'show';
     const { can, loading } = usePermissions();
     const canManage = can('roles.manage');
     const [roles, setRoles] = useState([]);
@@ -30,6 +32,9 @@ export default function RolesPage({ mode, roleId }) {
                 if (!active) return;
                 setRoles(roles);
                 setPermissions(permissions);
+                if (isShowPage && !roles.some(role => role.id === roleId)) {
+                    setError('Role not found.');
+                }
                 if (mode === 'create') setForm(newRole);
                 if (mode === 'edit') {
                     const role = roles.find(role => role.id === roleId);
@@ -43,7 +48,7 @@ export default function RolesPage({ mode, roleId }) {
             .catch(error => { if (active) setError(error.message); });
 
         return () => { active = false; };
-    }, [canManage, isFormPage, mode, roleId]);
+    }, [canManage, isFormPage, isShowPage, mode, roleId]);
 
     async function run(action, message) {
         setBusy(true);
@@ -72,40 +77,57 @@ export default function RolesPage({ mode, roleId }) {
         if (!window.confirm(`Delete the role “${role.name}”?`)) return;
         run(async () => {
             await request(`roles/${role.id}`, { method: 'DELETE' });
-            setRoles(await request('roles'));
+            if (isShowPage) router.visit('/dashboard/roles');
+            else setRoles(roles => roles.filter(item => item.id !== role.id));
         }, 'Role deleted.');
     }
 
     if (loading) return <p role="status">Loading permissions…</p>;
     if (!canManage) return <p className="alert alert-error">You do not have access to this page.</p>;
 
+    const role = isShowPage ? roles.find(item => item.id === roleId) : null;
+    const title = { edit: 'Edit role', create: 'Add role', show: 'Role details' }[mode] ?? 'Roles';
+
     return <section className="space-y-5">
-        <h1 className="text-3xl font-bold">{mode === 'edit' ? 'Edit role' : mode === 'create' ? 'Add role' : 'Roles'}</h1>
+        <h1 className="text-3xl font-bold">{title}</h1>
         {error && <p role="alert" className="alert alert-error">{error}</p>}
         {notice && <p role="status" className="alert alert-success">{notice}</p>}
         {isFormPage && !form && (error
             ? <Link href="/dashboard/roles" className="btn">Back to roles</Link>
             : <p role="status">Loading role form…</p>)}
         <fieldset disabled={busy} className="space-y-5">
-            {!isFormPage && <div className="rounded-box bg-base-100 p-5 space-y-4">
+            {isListPage && <div className="rounded-box bg-base-100 p-5 space-y-4">
                 <Link href="/dashboard/roles/create" className="btn btn-primary">Add role</Link>
-                {[[true, 'System roles'], [false, 'Custom roles']].map(([isProtected, title]) => <section key={title} className="space-y-2">
-                    <h2 className="text-xl font-semibold">{title}</h2>
-                    <div className="overflow-x-auto">
+                <div className="overflow-x-auto">
                     <table className="table">
-                        <thead><tr><th>Role</th><th>Permissions</th><th>Actions</th></tr></thead>
-                        <tbody>{roles.filter(role => role.protected === isProtected).map(role => <tr key={role.id}>
+                        <thead><tr><th>Role</th><th>Actions</th></tr></thead>
+                        <tbody>{roles.map(role => <tr key={role.id}>
                             <th scope="row">{role.name}</th>
-                            <td>{role.permissions.map(permission => permission.name).join(', ') || 'None'}</td>
-                            <td>{role.protected ? 'System role' : <div className="flex gap-2">
-                                <Link href={`/dashboard/roles/${role.id}/edit`} className="btn btn-sm">Edit</Link>
-                                <button type="button" className="btn btn-sm" onClick={() => remove(role)}>Delete</button>
-                            </div>}</td>
+                            <td><div className="flex flex-wrap gap-2">
+                                <Link href={`/dashboard/roles/${role.id}`} className="btn btn-sm">Show</Link>
+                                {!role.protected && <>
+                                    <Link href={`/dashboard/roles/${role.id}/edit`} className="btn btn-sm">Edit</Link>
+                                    <button type="button" className="btn btn-sm btn-error btn-outline" onClick={() => remove(role)}>Delete</button>
+                                </>}
+                            </div></td>
                         </tr>)}</tbody>
                     </table>
-                    </div>
-                </section>)}
+                </div>
             </div>}
+            {isShowPage && (role
+                ? <div className="rounded-box bg-base-100 p-5 space-y-4">
+                    <dl className="grid gap-3">
+                        <div><dt className="font-semibold">Role name</dt><dd>{role.name}</dd></div>
+                    </dl>
+                    <div className="flex flex-wrap gap-2">
+                        <Link href="/dashboard/roles" className="btn">Back to roles</Link>
+                        {!role.protected && <>
+                            <Link href={`/dashboard/roles/${role.id}/edit`} className="btn">Edit</Link>
+                            <button type="button" className="btn btn-error btn-outline" onClick={() => remove(role)}>Delete</button>
+                        </>}
+                    </div>
+                </div>
+                : error ? <Link href="/dashboard/roles" className="btn">Back to roles</Link> : <p role="status">Loading role…</p>)}
             {isFormPage && form && <form onSubmit={save} className="rounded-box bg-base-100 p-5 space-y-4">
                 <Field label="Role name">
                     <input className={input} required maxLength={100} pattern={String.raw`[a-z][a-z0-9_\-]*`}

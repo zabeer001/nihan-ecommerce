@@ -9,7 +9,7 @@ use Illuminate\Validation\ValidationException;
 class StockMovementService
 {
     // Call within a transaction after locking the variant row.
-    public function record(Variant $variant, int $quantity, string $reason, int $userId, ?int $orderId = null): void
+    public function record(Variant $variant, int $quantity, string $reason, ?int $userId, ?int $orderId = null): void
     {
         if ($variant->stock + $quantity < 0) {
             throw ValidationException::withMessages(['stock' => "Insufficient stock for {$variant->sku}."]);

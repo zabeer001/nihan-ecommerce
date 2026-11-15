@@ -2,7 +2,7 @@
 
 A Laravel application for managing products, categories, inventory, and Cash on Delivery (COD) orders. The dashboard uses React and Inertia.js, with Tailwind CSS and DaisyUI for styling.
 
-The current implementation focuses on the admin dashboard. The Next.js customer storefront and online payment integrations are not implemented.
+The Next.js storefront uses Laravel for the published catalog, guest COD checkout, and private order tracking. Staff manage storefront and manual orders in the Laravel dashboard.
 
 ## Technology
 
@@ -51,6 +51,8 @@ Pending → Confirmed → Processing → Shipped → Delivered
 ```
 
 Orders can be cancelled before delivery. Delivered and Cancelled are terminal states. Order items cannot be edited after creation; cancel and create a replacement order when corrections are needed.
+
+Set `STOREFRONT_DELIVERY_CENTS` to the flat delivery fee in BDT minor units to enable online checkout. A value of `0` enables free delivery. Leave it unset to keep new online orders disabled while preserving existing tracking links and staff orders.
 
 ### Authentication
 
@@ -133,7 +135,15 @@ docker compose exec -T laravel.test php artisan db:seed --class=UserSeeder
 
 The seeder uses `updateOrCreate`, so rerunning it can update the matching account's password and role. Do not publish credentials in documentation or use development credentials in production.
 
-### 4. Open the dashboard
+### 4. Load the optional NIHAN demo catalog
+
+```bash
+docker compose exec -T laravel.test php artisan db:seed --class=NihanDemoSeeder
+```
+
+This local/testing seeder adds six demo products, stock and illustrative galleries, four fictional customers, and sample COD orders if an active staff account exists. It includes single-SKU refills, a diffuser with stocked and sold-out colors, and a kit in two categories. Rerunning preserves existing product edits, stock balances, and order statuses. The normal application seeder leaves demo data opt-in. Run `php artisan storage:link` if images are missing.
+
+### 5. Open the dashboard
 
 - Sign in: [http://localhost:97/sign-in](http://localhost:97/sign-in)
 - Dashboard: [http://localhost:97/dashboard](http://localhost:97/dashboard)
@@ -244,4 +254,4 @@ Existing data should be updated with additive migrations. The category-pivot mig
 
 ## Current scope
 
-The customer storefront, customer self-service accounts, online payments, automatic delivery integrations, returns/refunds, multi-warehouse inventory, serialized tracking, and tax/discount calculations are outside the current implementation.
+Customer self-service accounts, online payments, automatic delivery integrations, returns/refunds, multi-warehouse inventory, serialized tracking, and tax/discount calculations are outside the current implementation.

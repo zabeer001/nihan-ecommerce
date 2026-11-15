@@ -74,6 +74,7 @@ class StorefrontProductController extends Controller
     private function published(): Builder
     {
         return Product::query()->where('status', 'active')
+            ->whereHas('categories', fn ($categories) => $categories->where('active', true))
             ->whereHas('variants', fn ($variants) => $variants->where('active', true))
             ->with(['images', 'variants' => fn ($variants) => $variants->where('active', true)->with([
                 'images' => fn ($images) => $images->reorder('primary', 'desc')->orderBy('position')->orderBy('id'),

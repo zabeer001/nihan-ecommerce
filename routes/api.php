@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\Dashboard\DashboardController;
 use App\Http\Controllers\Api\Inventory\InventoryController;
 use App\Http\Controllers\Api\Orders\OrderController;
+use App\Http\Controllers\Api\Orders\StorefrontOrderController;
 use App\Http\Controllers\Api\Product\ProductController;
 use App\Http\Controllers\Api\Product\StorefrontProductController;
 use App\Http\Controllers\Api\RoleController;
@@ -27,6 +28,11 @@ Route::pattern('role', '[0-9]+');
 Route::get('storefront/categories', [StorefrontProductController::class, 'categories']);
 Route::get('storefront/products', [StorefrontProductController::class, 'index']);
 Route::get('storefront/products/{slug}', [StorefrontProductController::class, 'show']);
+Route::prefix('storefront')->middleware('throttle:120,1')->group(function () {
+    Route::post('quote', [StorefrontOrderController::class, 'quote']);
+    Route::post('orders', [StorefrontOrderController::class, 'store']);
+    Route::post('tracking', [StorefrontOrderController::class, 'tracking']);
+});
 
 Route::prefix('admin')->middleware(['auth:api', 'active_account'])->group(function () {
     Route::get('summary', [DashboardController::class, 'summary'])->middleware('permission:dashboard.view');

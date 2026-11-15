@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api\Orders\Services;
 use App\Http\Controllers\Api\Inventory\Services\StockMovementService;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\Product;
 use App\Models\Variant;
+use App\Services\Orders\StorefrontQuote;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -14,63 +16,106 @@ class OrderWorkflowService
 {
     public function __construct(
         private readonly StockMovementService $stockMovements,
+        private readonly StorefrontQuote $storefrontQuote,
     ) {}
 
-    public function create(array $data, int $userId): Order
+    public function create(array $data, ?int $userId, ?string $trackingHash = null): Order
     {
-        $hash = hash('sha256', json_encode($data));
+        $source = $userId === null ? 'storefront' : 'staff';
+        $hash = hash('sha256', json_encode($data, JSON_THROW_ON_ERROR));
+        $replay = function (Order $existing) use ($source, $userId, $hash, $trackingHash): Order {
+            if ($existing->source !== $source || $existing->created_by !== $userId
+                || $existing->request_hash !== $hash || $existing->tracking_hash !== $trackingHash) {
+                throw ValidationException::withMessages(['submission_key' => 'This submission key was already used.']);
+            }
 
-        return DB::transaction(function () use ($data, $userId, $hash) {
-            // Lock the creator first: serializes identical submissions, including initial inserts.
-            DB::table('users')->where('id', $userId)->lockForUpdate()->first();
+            return $existing;
+        };
+
+        try {
+            return DB::transaction(function () use ($data, $userId, $trackingHash, $source, $hash, $replay) {
+                if ($userId !== null) {
+                    DB::table('users')->where('id', $userId)->lockForUpdate()->first();
+                }
+
+                $existing = Order::where('submission_key', $data['submission_key'])->first();
+                if ($existing) {
+                    return $replay($existing);
+                }
+
+                // Reserve the unique submission before reading stock so a concurrent retry
+                // can recover the original order even if it consumed the last unit.
+                $order = Order::create(collect($data)->only(['submission_key', 'customer_name', 'phone', 'email', 'address'])->all() + [
+                    'source' => $source,
+                    'tracking_hash' => $trackingHash,
+                    'request_hash' => $hash,
+                    'created_by' => $userId,
+                    'subtotal_cents' => 0,
+                    'delivery_cents' => 0,
+                    'total_cents' => 0,
+                ]);
+                $items = $data['items'];
+                $variants = $this->storefrontQuote->variants($items, lock: true);
+                $delivery = $trackingHash === null ? $data['delivery_cents'] : $this->storefrontQuote->deliveryCents();
+                $quote = $this->storefrontQuote->quote($items, $variants, $delivery);
+
+                if ($trackingHash !== null) {
+                    $expectedPrices = array_column($items, 'price_cents');
+                    $currentPrices = array_column($quote['items'], 'price_cents');
+                    if (! $quote['available'] || $delivery !== $data['delivery_cents'] || $currentPrices !== $expectedPrices) {
+                        throw new HttpResponseException(response()->json([
+                            'message' => $quote['available'] ? 'Prices or delivery fees changed. Review the new total.' : 'Some cart items are no longer available in the requested quantity.',
+                            'quote' => $quote,
+                        ], 409));
+                    }
+                } elseif (! $quote['available']) {
+                    foreach ($quote['items'] as $line) {
+                        if ($line['issue'] !== null) {
+                            $message = $line['issue'] === 'unavailable'
+                                ? 'Select active products and variants.'
+                                : "Insufficient stock for {$variants[$line['variant_id']]->sku}.";
+                            throw ValidationException::withMessages(['items' => $message]);
+                        }
+                    }
+                }
+
+                $order->update(collect($quote)->only(['subtotal_cents', 'delivery_cents', 'total_cents'])->all());
+                $lines = collect($quote['items'])->keyBy('variant_id');
+                foreach ($variants as $variant) {
+                    $line = $lines[$variant->id];
+                    OrderItem::create([
+                        'order_id' => $order->id,
+                        'variant_id' => $variant->id,
+                        'quantity' => $line['quantity'],
+                        'product_name' => $line['name'],
+                        'sku' => $variant->sku,
+                        'attributes' => $variant->attributes,
+                        'price_cents' => $line['price_cents'],
+                        'total_cents' => $line['total_cents'],
+                    ]);
+                    $this->stockMovements->record($variant, -$line['quantity'], 'Order created', $userId, $order->id);
+                }
+                DB::table('order_status_events')->insert([
+                    'order_id' => $order->id,
+                    'user_id' => $userId,
+                    'status' => 'Pending',
+                    'created_at' => now(),
+                ]);
+
+                return $order;
+            }, 3);
+        } catch (UniqueConstraintViolationException $exception) {
             $existing = Order::where('submission_key', $data['submission_key'])->first();
             if ($existing) {
-                if ($existing->created_by !== $userId || $existing->request_hash !== $hash) {
-                    throw ValidationException::withMessages(['submission_key' => 'This submission key was already used.']);
-                }
+                return $replay($existing);
+            }
 
-                return $existing;
+            if ($trackingHash !== null && Order::where('tracking_hash', $trackingHash)->exists()) {
+                throw ValidationException::withMessages(['tracking_secret' => 'This tracking secret was already used.']);
             }
-            $items = collect($data['items'])->sortBy('variant_id');
-            $lines = [];
-            $subtotal = 0;
-            foreach ($items as $item) {
-                $variant = Variant::whereKey($item['variant_id'])->lockForUpdate()->firstOrFail();
-                $product = Product::findOrFail($variant->product_id);
-                if (! $variant->active || $product->status !== 'active' || ! $product->categories()->where('active', true)->exists()) {
-                    throw ValidationException::withMessages(['items' => 'Select active products and variants.']);
-                }
-                if ($variant->stock < $item['quantity']) {
-                    throw ValidationException::withMessages(['items' => "Insufficient stock for {$variant->sku}."]);
-                }
-                $total = $variant->price_cents * $item['quantity'];
-                $subtotal += $total;
-                $lines[] = [
-                    'variant' => $variant,
-                    'quantity' => $item['quantity'],
-                    'product_name' => $product->name,
-                    'sku' => $variant->sku,
-                    'attributes' => $variant->attributes,
-                    'price_cents' => $variant->price_cents,
-                    'total_cents' => $total,
-                ];
-            }
-            $order = Order::create(collect($data)->except('items')->all() + ['request_hash' => $hash, 'created_by' => $userId, 'subtotal_cents' => $subtotal, 'total_cents' => $subtotal + $data['delivery_cents']]);
-            foreach ($lines as $line) {
-                $variant = $line['variant'];
-                unset($line['variant']);
-                OrderItem::create($line + ['order_id' => $order->id, 'variant_id' => $variant->id]);
-                $this->stockMovements->record($variant, -$line['quantity'], 'Order created', $userId, $order->id);
-            }
-            DB::table('order_status_events')->insert([
-                'order_id' => $order->id,
-                'user_id' => $userId,
-                'status' => 'Pending',
-                'created_at' => now(),
-            ]);
 
-            return $order;
-        }, 3);
+            throw $exception;
+        }
     }
 
     public function status(int $id, string $status, int $userId): Order
