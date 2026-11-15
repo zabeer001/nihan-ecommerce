@@ -20,10 +20,6 @@ class NihanDemoSeeder extends Seeder
 {
     public function run(StockMovementService $stock, OrderWorkflowService $orders): void
     {
-        if (! app()->environment(['local', 'testing'])) {
-            throw new RuntimeException('NIHAN demo data can only be seeded in local and testing environments.');
-        }
-
         $staffId = User::whereIn('role', config('rbac.administrators'))
             ->where('is_frozen', false)->orderBy('id')->value('id');
 
