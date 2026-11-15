@@ -11,11 +11,10 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([
-            UserSeeder::class,
-            // ItemSeeder::class,
-            // OrderDemoSeeder::class,
-            // ExpandedDemoSeeder::class,
-        ]);
+        $this->call(UserSeeder::class);
+
+        if (app()->environment(['local', 'testing'])) {
+            $this->call(NihanDemoSeeder::class);
+        }
     }
 }
