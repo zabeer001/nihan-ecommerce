@@ -9,6 +9,7 @@ return [
         'products.view', 'products.create', 'products.update', 'products.delete',
         'inventory.view', 'inventory.update',
         'orders.view', 'orders.create', 'orders.update',
+        'homepage.manage',
         'roles.manage',
     ],
 ];

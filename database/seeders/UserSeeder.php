@@ -21,6 +21,5 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('jabirasgoeaskdkjfvndsvasd353@'),
             ]
         );
-
     }
 }

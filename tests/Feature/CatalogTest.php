@@ -318,6 +318,11 @@ it('publishes only active catalog products and photos for their active variants'
         ->assertJsonCount(2, 'data')
         ->assertJsonPath('data.1.price_cents', 12345)
         ->assertJsonPath('data.1.image.id', $shared->id);
+    $this->getJson("/api/storefront/products?category_id=$category->id&q=Y-SH")->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.slug', 'y-shirt');
+    $this->getJson('/api/storefront/products?q=%25')->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson('/api/storefront/products?q=draft')->assertOk()->assertJsonCount(0, 'data');
     $this->getJson('/api/storefront/products/shirt')->assertOk()
         ->assertJsonPath('data.has_variants', true)
         ->assertJsonCount(1, 'data.variants')

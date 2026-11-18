@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Category\CategoryController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\Dashboard\DashboardController;
 use App\Http\Controllers\Api\Inventory\InventoryController;
+use App\Http\Controllers\Api\HomepageContentController;
 use App\Http\Controllers\Api\Orders\OrderController;
 use App\Http\Controllers\Api\Orders\StorefrontOrderController;
 use App\Http\Controllers\Api\Product\ProductController;
@@ -26,6 +27,7 @@ Route::get('profile', fn (Request $request) => response()->json([
 Route::pattern('role', '[0-9]+');
 
 Route::get('storefront/categories', [StorefrontProductController::class, 'categories']);
+Route::get('storefront/homepage-content', [HomepageContentController::class, 'storefront'])->middleware('throttle:120,1');
 Route::get('storefront/products', [StorefrontProductController::class, 'index']);
 Route::get('storefront/products/{slug}', [StorefrontProductController::class, 'show']);
 Route::prefix('storefront')->middleware('throttle:120,1')->group(function () {
@@ -35,6 +37,10 @@ Route::prefix('storefront')->middleware('throttle:120,1')->group(function () {
 });
 
 Route::prefix('admin')->middleware(['auth:api', 'active_account'])->group(function () {
+    Route::get('homepage-content', [HomepageContentController::class, 'index'])->middleware('permission:homepage.manage');
+    Route::post('homepage-content', [HomepageContentController::class, 'store'])->middleware('permission:homepage.manage');
+    Route::put('homepage-content/{homepageContent}', [HomepageContentController::class, 'update'])->middleware('permission:homepage.manage');
+    Route::delete('homepage-content/{homepageContent}', [HomepageContentController::class, 'destroy'])->middleware('permission:homepage.manage');
     Route::get('summary', [DashboardController::class, 'summary'])->middleware('permission:dashboard.view');
     Route::get('categories', [CategoryController::class, 'categories'])->middleware('permission:categories.view,products.create,products.update');
     Route::post('categories', [CategoryController::class, 'category'])->middleware('permission:categories.create');

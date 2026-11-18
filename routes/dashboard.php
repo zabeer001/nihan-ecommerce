@@ -10,6 +10,7 @@ Route::get('/{section}', function (string $section) {
 })->whereIn('section', ['categories', 'products', 'inventory', 'orders']);
 
 Route::get('/customers', fn () => Inertia::render('backend/pages/customers/CustomersPage'));
+Route::get('/homepage-content', fn () => Inertia::render('backend/pages/homepage/HomepageContentPage'));
 Route::get('/users', fn () => Inertia::render('backend/pages/users/UsersPage'));
 Route::get('/roles', fn () => Inertia::render('backend/pages/roles/RolesPage'));
 Route::get('/roles/create', fn () => Inertia::render('backend/pages/roles/RolesPage', ['mode' => 'create']));

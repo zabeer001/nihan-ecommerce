@@ -25,15 +25,19 @@ class StorefrontProductController extends Controller
         $filters = $request->validate([
             'category' => 'sometimes|string|max:100',
             'category_id' => 'sometimes|integer|min:1',
+            'q' => 'nullable|string|max:100',
         ]);
         $category = $filters['category'] ?? null;
         $categoryId = $filters['category_id'] ?? null;
+        $search = mb_strtolower(trim($filters['q'] ?? ''));
+        $pattern = '%'.strtr($search, ['!' => '!!', '%' => '!%', '_' => '!_']).'%';
         $products = $this->published()
             ->when($categoryId !== null || $category !== null, fn ($query) => $query
                 ->whereHas('categories', fn ($categories) => $categories->where('active', true)
                     ->when($categoryId !== null,
                         fn ($categories) => $categories->whereKey($categoryId),
                         fn ($categories) => $categories->whereRaw('LOWER(name) = ?', [mb_strtolower($category)]))))
+            ->when($search !== '', fn ($query) => $query->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern]))
             ->withMin(['variants as price_cents' => fn ($variants) => $variants->where('active', true)], 'price_cents')
             ->latest('id')->simplePaginate(24);
 
