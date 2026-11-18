@@ -10,6 +10,11 @@ class Product extends Model
 {
     protected $guarded = [];
 
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(ProductReview::class);
+    }
+
     public function variants(): HasMany
     {
         return $this->hasMany(Variant::class)->orderBy('id');

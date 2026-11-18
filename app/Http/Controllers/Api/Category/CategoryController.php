@@ -13,6 +13,11 @@ use Illuminate\Http\Response;
 
 class CategoryController extends Controller
 {
+    public function show(Category $category): Category
+    {
+        return $category;
+    }
+
     public function categories(CategoryIndexService $service): Collection
     {
         return $service->handle();

@@ -3,30 +3,35 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class HomepageContent extends Model
 {
     protected $guarded = [];
-
     protected $casts = ['is_published' => 'boolean', 'position' => 'integer'];
 
-    public function toStorefrontArray(): array
+    public function media(): HasMany
     {
-        return [
-            'id' => $this->id,
-            'content_type' => $this->content_type,
-            'placement' => $this->placement,
-            'position' => $this->position,
-            'media_type' => $this->media_type,
-            'media_url' => Storage::disk('public')->url($this->media_path),
-            'poster_url' => $this->poster_path ? Storage::disk('public')->url($this->poster_path) : null,
-            'alt_text' => $this->alt_text,
-            'heading' => $this->heading,
-            'description' => $this->description,
-            'button_text' => $this->button_text,
-            'button_url' => $this->button_url,
-            'is_published' => $this->is_published,
-        ];
+        return $this->hasMany(HomepageMedia::class)->orderBy('position')->orderBy('id');
+    }
+
+    public function toAdminArray(): array
+    {
+        return [...$this->attributesToArray(), 'media' => $this->media->map->toMediaArray()->values()->all()];
+    }
+
+    public function toStorefrontSlides(): array
+    {
+        return $this->media->where('is_published', true)->map(function (HomepageMedia $file) {
+            $data = [
+                ...$file->toMediaArray(), 'content_id' => $this->id,
+                'content_type' => $this->placement === 'hero' ? 'hero_slide' : 'image_block',
+                'placement' => $this->placement,
+            ];
+            foreach (['alt_text', 'heading', 'description', 'button_text', 'button_url'] as $field) {
+                $data[$field] = $file->$field ?? $this->$field;
+            }
+            return $data;
+        })->values()->all();
     }
 }

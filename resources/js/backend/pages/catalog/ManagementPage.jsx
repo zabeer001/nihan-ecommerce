@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react';
 import { usePermissions } from '../../layouts/PermissionsContext';
 import { request, money, cents, input } from './catalogUi';
 import CategoryModal from './components/CategoryModal';
+import { Link } from '@inertiajs/react';
 import StockAdjustmentForm from './components/StockAdjustmentForm';
 import StockHistory from './components/StockHistory';
 import OrderForm from './components/OrderForm';
 import OrderInvoice from './components/OrderInvoice';
 const emptyCategory = {
   name: '',
-  active: true
+  active: true,
+  content_cards: []
 };
 export default function ManagementPage({
   section
@@ -73,7 +75,7 @@ export default function ManagementPage({
     await run(async () => {
       await request('categories' + (form.id ? '/' + form.id : ''), {
         method: form.id ? 'PUT' : 'POST',
-        body: { name: form.name, active: form.active },
+        body: { name: form.name, active: form.active, content_cards: form.content_cards || [], usage_guide: form.usage_guide || null },
       });
       setForm(null);
       if (canView) await load();
@@ -160,14 +162,12 @@ export default function ManagementPage({
                 <td>{row.name || row.sku || row.customer_name}</td>
                 {section === 'orders' && <td>{row.source === 'storefront' ? 'Storefront' : 'Staff'}</td>}
                 <td>{section === 'categories' ? row.active ? 'Active' : 'Inactive' : section === 'products' ? row.status : section === 'inventory' ? `${row.product_name} · Stock ${row.stock} · ${money(row.price_cents)}` : `${row.status} · ${money(row.total_cents)}`}</td>
-                <td className="flex gap-2">{canUpdate && ['categories', 'products'].includes(section) && <button className="btn btn-sm" onClick={() => {
+                <td className="flex gap-2">{section === 'products' && canView && <><Link className="btn btn-sm" href={`/dashboard/products/${row.id}`}>Show</Link><Link className="btn btn-sm" href={`/dashboard/products/${row.id}/reviews`}>Reviews</Link></>}{canUpdate && ['categories', 'products'].includes(section) && <button className="btn btn-sm" onClick={() => {
                     if (section === 'products') {
                       window.location.assign(`/dashboard/products/${row.id}/edit`);
                       return;
                     }
-                    setError('');
-                    setForm({ ...row });
-                    setDetail(null);
+                    window.location.assign(`/dashboard/categories/${row.id}/edit`);
                   }}>Edit</button>}
 {canDelete && section === 'categories' && <button className="btn btn-sm" onClick={() => run(async () => {
                     await request(`categories/${row.id}`, {

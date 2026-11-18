@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
@@ -56,6 +57,9 @@ it('quotes, places and recovers a COD order and shares staff status without expo
     $this->patchJson("/api/admin/orders/$reference/status", ['status' => 'Cancelled'])->assertOk();
     expect($this->variant->fresh()->stock)->toBe(2);
     $this->assertDatabaseCount('orders', 1);
+    $this->assertDatabaseCount('customers', 1);
+    $this->assertDatabaseHas('customers', ['name' => 'Guest shopper', 'phone' => '01700000000', 'email' => 'guest@example.test', 'address' => 'Dhaka, Bangladesh']);
+    expect(Order::findOrFail($reference)->customer_id)->toBe(Customer::firstOrFail()->id);
     $this->assertDatabaseHas('order_status_events', ['order_id' => $reference, 'status' => 'Pending', 'user_id' => null]);
     $this->assertDatabaseHas('order_status_events', ['order_id' => $reference, 'status' => 'Cancelled', 'user_id' => $staff->id]);
 });
@@ -91,6 +95,7 @@ it('rejects invalid details and preserves inventory on stale quotes or stock', f
         ->assertJsonPath('quote.items.0.issue', 'insufficient_stock');
     $this->assertDatabaseCount('orders', 0);
     $this->assertDatabaseCount('stock_movements', 0);
+    $this->assertDatabaseCount('customers', 0);
 });
 
 it('aligns publication with sellability and requires a configured fee', function () {
@@ -103,4 +108,60 @@ it('aligns publication with sellability and requires a configured fee', function
     $this->postJson('/api/storefront/quote', ['items' => $this->items])->assertServiceUnavailable();
     $this->postJson('/api/storefront/orders', $this->payload)->assertServiceUnavailable();
     $this->assertDatabaseCount('orders', 0);
+});
+
+it('reuses a customer across phone formats and preserves each order contact snapshot', function () {
+    $this->variant->update(['stock' => 4]);
+    $first = $this->postJson('/api/storefront/orders', $this->payload)->assertOk()->json('reference');
+    $second = $this->postJson('/api/storefront/orders', [
+        ...$this->payload, 'phone' => '+8801700000000', 'customer_name' => 'New delivery name',
+        'address' => 'Chattogram, Bangladesh', 'email' => 'new@example.test',
+        'submission_key' => (string) Str::uuid(), 'tracking_secret' => bin2hex(random_bytes(32)),
+    ])->assertOk()->json('reference');
+    $this->assertDatabaseCount('customers', 1);
+    expect(Order::findOrFail($first)->customer_id)->toBe(Order::findOrFail($second)->customer_id)
+        ->and(Order::findOrFail($first)->address)->toBe('Dhaka, Bangladesh')
+        ->and(Order::findOrFail($second)->address)->toBe('Chattogram, Bangladesh')
+        ->and(Customer::firstOrFail()->name)->toBe('Guest shopper');
+});
+
+it('links a manually saved customer without overwriting their details', function () {
+    $customer = Customer::create(['name' => 'Saved customer', 'phone' => '+880 (1700) 000000', 'email' => 'saved@example.test', 'address' => 'Saved address']);
+    $reference = $this->postJson('/api/storefront/orders', $this->payload)->assertOk()->json('reference');
+    expect(Order::findOrFail($reference)->customer_id)->toBe($customer->id)
+        ->and($customer->fresh()->name)->toBe('Saved customer')
+        ->and($customer->fresh()->address)->toBe('Saved address');
+    $this->assertDatabaseCount('customers', 1);
+    $customer->delete();
+    expect(Order::findOrFail($reference)->customer_id)->toBeNull()
+        ->and(Order::findOrFail($reference)->customer_name)->toBe('Guest shopper');
+});
+
+it('saves customer details for staff-created orders too', function () {
+    $user = User::factory()->create(['role' => 'admin']);
+    $payload = $this->payload;
+    unset($payload['tracking_secret'], $payload['items'][0]['price_cents']);
+    $this->actingAs($user, 'api')->postJson('/api/admin/orders', $payload)->assertSuccessful();
+    $order = Order::firstOrFail();
+    expect($order->source)->toBe('staff')
+        ->and($order->customer_id)->toBe(Customer::firstOrFail()->id);
+});
+
+it('includes active variant IDs prices and stock in product cards for quick add to cart', function () {
+    $this->variant->update(['stock' => 0]);
+    $available = $this->variant->product->variants()->create([
+        'sku' => 'REFILL-LARGE', 'name' => 'Large', 'attributes' => ['size' => '100 ml'],
+        'combination' => hash('sha256', 'large'), 'price_cents' => 20000, 'stock' => 3, 'active' => true,
+    ]);
+    $this->variant->product->variants()->create([
+        'sku' => 'REFILL-HIDDEN', 'attributes' => [], 'combination' => hash('sha256', 'hidden'),
+        'price_cents' => 100, 'stock' => 3, 'active' => false,
+    ]);
+    $this->getJson('/api/storefront/products')->assertOk()->assertJsonCount(1, 'data')
+        ->assertJsonCount(2, 'data.0.variants')->assertJsonPath('data.0.variants.0.id', $this->variant->id)
+        ->assertJsonPath('data.0.variants.0.in_stock', false)
+        ->assertJsonPath('data.0.variants.1.id', $available->id)
+        ->assertJsonPath('data.0.variants.1.label', 'Large')
+        ->assertJsonPath('data.0.variants.1.price_cents', 20000)
+        ->assertJsonPath('data.0.variants.1.in_stock', true);
 });

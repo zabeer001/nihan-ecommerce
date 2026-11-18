@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Product\Services\Concerns;
 
 use App\Http\Controllers\Api\Product\Services\ProductGalleryService;
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Models\Variant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -68,6 +69,16 @@ trait HandlesProduct
             if (isset($validated['gallery'])) {
                 $this->galleries->sync($product, null, $validated['gallery'], $userId, $id, 'gallery');
             }
+            // Wait until all galleries have synced: the submitted shared gallery may
+            // still reference a fallback while a variant receives its first real image.
+            $galleries = [$validated['gallery'] ?? []];
+            foreach ($validated['variants'] ?? [] as $row) $galleries[] = $row['gallery'] ?? [];
+            foreach ($galleries as $gallery) {
+                if (array_column($gallery['items'] ?? [], 'upload_id')) {
+                    ProductImage::removeSeedFallbacks($product->id);
+                    break;
+                }
+            }
             $this->galleries->validateActiveVariants($product, $submittedRows);
 
             return $product->load(['categories', 'variants']);
@@ -93,6 +104,7 @@ trait HandlesProduct
             'variants.*.barcode' => 'nullable|string|max:255',
             'variants.*.attributes' => 'present|array|max:10',
             'variants.*.attributes.*' => 'required|string|max:100',
+            'variants.*.compare_at_price_cents' => 'nullable|integer|min:0|max:100000000',
             'variants.*.price_cents' => 'required|integer|min:0|max:100000000',
             'variants.*.purchase_price_cents' => 'nullable|integer|min:0|max:100000000',
             'variants.*.dealer_price_cents' => 'nullable|integer|min:0|max:100000000',

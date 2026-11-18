@@ -6,7 +6,7 @@ export function newVariant() {
     clientKey: crypto.randomUUID(),
     sku: `SKU-${crypto.randomUUID().slice(0, 18).toUpperCase()}`,
     name: '', barcode: '', active: true, options: '',
-    retail_price: '', purchase_price: '', dealer_price: '', corporate_price: '',
+    retail_price: '', compare_at_price: '', purchase_price: '', dealer_price: '', corporate_price: '',
     gallery: readGallery(),
   };
 }
@@ -47,7 +47,7 @@ export default function ProductVariantsForm({ form, change, galleryError }) {
           <button type="button" className="btn" aria-label="Generate SKU" onClick={() => update(index, 'sku', newVariant().sku)}>↻</button></div></Field>
         <Field label="Barcode"><input className={input} value={variant.barcode} onChange={event => update(index, 'barcode', event.target.value)} /></Field>
         {hasVariants && <Field label="Status"><select className="select select-bordered w-full" value={variant.active ? 'active' : 'inactive'} onChange={event => update(index, 'active', event.target.value === 'active')}><option value="active">Active</option><option value="inactive">Archived</option></select></Field>}
-        {[['purchase_price','Purchase price'],['retail_price','Retail price'],['dealer_price','Dealer price'],['corporate_price','Corporate price']].map(([field,label]) => (
+        {[['purchase_price','Purchase price'],['compare_at_price','Price before discount'],['retail_price','Retail price / discounted price'],['dealer_price','Dealer price'],['corporate_price','Corporate price']].map(([field,label]) => (
           <Field key={field} label={`${label} (BDT)`}><input className={input} type="number" min="0" max="1000000" step="0.01" value={variant[field]} placeholder="Optional" onChange={event => update(index, field, event.target.value)} /></Field>
         ))}
       </div>

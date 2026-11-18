@@ -101,15 +101,36 @@ async function refreshAccessToken(token) {
     return tokenRefreshPromise;
 }
 
+function uploadRequest(url, options, onProgress) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open(options.method, url);
+        Object.entries(options.headers).forEach(([key, value]) => xhr.setRequestHeader(key, value));
+        xhr.upload.onprogress = event => {
+            if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100));
+        };
+        xhr.onload = () => resolve(new Response(xhr.responseText || null, {
+            status: xhr.status,
+            headers: { 'Content-Type': xhr.getResponseHeader('Content-Type') || '' },
+        }));
+        xhr.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
+        xhr.onabort = () => reject(new Error('Upload cancelled.'));
+        xhr.send(options.body);
+    });
+}
+
 export async function apiRequest(url, options = {}, retryAfterRefresh = true) {
     const { method = 'GET', body, auth = false, headers = {} } = options;
     const requestToken = auth ? getAccessToken() : null;
-    const response = await fetch(url, {
+    const fetchOptions = {
         method,
         headers: buildHeaders({ auth, headers, body, token: requestToken }),
         body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
         credentials: 'same-origin',
-    });
+    };
+    const response = options.onUploadProgress
+        ? await uploadRequest(url, fetchOptions, options.onUploadProgress)
+        : await fetch(url, fetchOptions);
     const payload = await responsePayload(response);
     if (!response.ok) {
         if (auth && response.status === 401 && requestToken && retryAfterRefresh && url !== '/api/refresh' && url !== '/api/signout') {

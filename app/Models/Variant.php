@@ -10,7 +10,7 @@ class Variant extends Model
 {
     protected $guarded = [];
 
-    protected $casts = ['attributes' => 'array', 'active' => 'boolean'];
+    protected $casts = ['attributes' => 'array', 'active' => 'boolean', 'compare_at_price_cents' => 'integer'];
 
     public function product(): BelongsTo
     {

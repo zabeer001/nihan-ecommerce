@@ -16,7 +16,7 @@ class StorefrontProductController extends Controller
     public function categories(): JsonResponse
     {
         return response()->json([
-            'data' => Category::query()->where('active', true)->orderBy('name')->orderBy('id')->get(['id', 'name']),
+            'data' => Category::query()->where('active', true)->orderBy('name')->orderBy('id')->get(['id', 'name', 'content_cards', 'usage_guide']),
         ]);
     }
 
@@ -46,6 +46,14 @@ class StorefrontProductController extends Controller
                 'slug' => $product->slug,
                 'name' => $product->name,
                 'price_cents' => (int) $product->price_cents,
+                'variants' => $product->variants->sortBy([['price_cents', 'asc'], ['id', 'asc']])->values()->map(fn (Variant $variant) => [
+                    'id' => $variant->id,
+                    'label' => $variant->name ?: (implode(' / ', $variant->attributes ?? []) ?: $variant->sku),
+                    'price_cents' => (int) $variant->price_cents,
+                    'compare_at_price_cents' => $variant->compare_at_price_cents,
+                    'in_stock' => $variant->stock > 0,
+                ]),
+                'compare_at_price_cents' => $product->variants->sortBy([['price_cents', 'asc'], ['id', 'asc']])->first()?->compare_at_price_cents,
                 'image' => $this->photo($product->images->first()
                     ?? $product->variants->first(fn (Variant $variant) => $variant->images->isNotEmpty())?->images->first()),
             ]),
@@ -69,6 +77,7 @@ class StorefrontProductController extends Controller
                 'id' => $variant->id,
                 'label' => $variant->name ?: (implode(' / ', $variant->attributes ?? []) ?: $variant->sku),
                 'price_cents' => (int) $variant->price_cents,
+                'compare_at_price_cents' => $variant->compare_at_price_cents,
                 'in_stock' => $variant->stock > 0,
                 'images' => $variant->images->map(fn (ProductImage $image) => $this->photo($image)),
             ]),

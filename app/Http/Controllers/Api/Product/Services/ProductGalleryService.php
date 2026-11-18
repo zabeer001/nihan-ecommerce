@@ -75,7 +75,9 @@ class ProductGalleryService
         foreach ($removedIds as $id) {
             $image = $existing[$id];
             $image->delete();
-            DB::afterCommit(fn () => rescue(fn () => Storage::disk('public')->delete($image->path)));
+            if (! $image->isSeedFallback()) {
+                DB::afterCommit(fn () => rescue(fn () => Storage::disk('public')->delete($image->path)));
+            }
         }
     }
 

@@ -51,7 +51,7 @@ class NihanDemoSeeder extends Seeder
             'unit' => 'piece',
             'product_type' => 'physical',
             'tracking_type' => 'quantity',
-            'status' => 'active',
+            'status' => $code === 'seasonal-preview' ? 'draft' : 'active',
         ]);
 
         if (! $product->wasRecentlyCreated) {
@@ -70,10 +70,15 @@ class NihanDemoSeeder extends Seeder
                 'attributes' => $attributes,
                 'combination' => hash('sha256', json_encode(array_map('strtolower', $attributes), JSON_THROW_ON_ERROR)),
                 'price_cents' => $price,
+                'compare_at_price_cents' => in_array($code, ['starter-kit', 'refill-duo', 'discovery-set'], true) ? $price + 20000 : null,
+                'purchase_price_cents' => (int) round($price * 0.55),
+                'dealer_price_cents' => (int) round($price * 0.8),
+                'corporate_price_cents' => (int) round($price * 0.9),
+                'barcode' => 'DEMO-NIHAN-'.strtoupper($code).$suffix,
                 'stock' => 0,
-                'active' => true,
+                'active' => $code !== 'seasonal-preview',
             ]);
-            $stock->record($variant, $quantity, 'Demo opening stock', $staffId);
+            if ($quantity > 0) $stock->record($variant, $quantity, 'Demo opening stock', $staffId);
             if ($image !== null) {
                 $variant->images()->create([
                     'product_id' => $product->id,
@@ -86,6 +91,12 @@ class NihanDemoSeeder extends Seeder
 
     private function photo(string $file): string
     {
+        $file = match ($file) {
+            'oud-noir-100' => 'oud-noir', 'padma-100' => 'padma',
+            'mango-leaf-100' => 'mango-leaf', 'monsoon-100', 'seasonal-preview' => 'monsoon',
+            'refill-duo', 'discovery-set' => 'starter-kit',
+            default => $file,
+        };
         $path = "demo/nihan/$file.webp";
         $disk = Storage::disk('public');
         if (! $disk->exists($path) && ! $disk->put($path, file_get_contents(__DIR__."/fixtures/nihan/$file.webp"))) {
@@ -163,6 +174,31 @@ class NihanDemoSeeder extends Seeder
             ]],
             'monsoon' => ['Monsoon Refill · 50 ml', 'Wet earth, cardamom, and soft vanilla.', ['Fragrance'], [
                 ['', null, [], 85000, 20, null],
+            ]],
+            'oud-noir-100' => ['Oud Noir Refill · 100 ml', 'A larger refill of smoked oud, amber and leather for your daily drive.', ['Fragrance'], [
+                ['', '100 ml', ['size' => '100 ml'], 159000, 30, null],
+            ]],
+            'padma-100' => ['Padma Refill · 100 ml', 'Water lily, cool musk and green tea in a larger refill.', ['Fragrance'], [
+                ['', '100 ml', ['size' => '100 ml'], 139000, 28, null],
+            ]],
+            'mango-leaf-100' => ['Mango Leaf Refill · 100 ml', 'A larger refill with green leaves and sun-warmed fruit.', ['Fragrance'], [
+                ['', '100 ml', ['size' => '100 ml'], 139000, 3, null],
+            ]],
+            'monsoon-100' => ['Monsoon Refill · 100 ml', 'Wet earth, cardamom and vanilla for the longer journey.', ['Fragrance'], [
+                ['', '100 ml', ['size' => '100 ml'], 149000, 0, null],
+            ]],
+            'refill-duo' => ['NIHAN Refill Duo', 'Two 50 ml refills for alternating your everyday fragrance. Demo bundle; image is illustrative.', ['Fragrance'], [
+                ['-WOODY', 'Oud Noir + Monsoon', ['pair' => 'Oud Noir + Monsoon'], 159000, 20, null],
+                ['-FRESH', 'Padma + Mango Leaf', ['pair' => 'Padma + Mango Leaf'], 145000, 18, null],
+            ]],
+            'discovery-set' => ['NIHAN Discovery Starter Set', 'A diffuser and a choice of refill, in Graphite or Sand Gold. Demo bundle; image is illustrative.', ['Accessories', 'Fragrance'], [
+                ['-GRAPHITE-OUD', 'Graphite / Oud Noir', ['color' => 'Graphite', 'fragrance' => 'Oud Noir'], 469000, 15, null],
+                ['-GRAPHITE-PADMA', 'Graphite / Padma', ['color' => 'Graphite', 'fragrance' => 'Padma'], 459000, 12, null],
+                ['-SAND-OUD', 'Sand Gold / Oud Noir', ['color' => 'Sand Gold', 'fragrance' => 'Oud Noir'], 489000, 10, 'diffuser-sand'],
+                ['-SAND-PADMA', 'Sand Gold / Padma', ['color' => 'Sand Gold', 'fragrance' => 'Padma'], 479000, 0, 'diffuser-sand'],
+            ]],
+            'seasonal-preview' => ['NIHAN Seasonal Preview', 'Unpublished demo product for testing the draft workflow.', ['Fragrance'], [
+                ['', 'Preview', [], 99000, 0, null],
             ]],
             'starter-kit' => ['NIHAN Diffuser Starter Kit', 'A Graphite diffuser with your choice of a 50 ml fragrance refill.', ['Accessories', 'Fragrance'], [
                 ['-OUD', 'Oud Noir', ['fragrance' => 'Oud Noir'], 459000, 12, null],

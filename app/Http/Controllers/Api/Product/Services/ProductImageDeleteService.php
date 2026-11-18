@@ -22,7 +22,9 @@ class ProductImageDeleteService
                 $nextImage = $shared->where('product_id', $productId)->orderBy('position')->orderBy('id')->first();
                 $nextImage?->update(['primary' => true]);
             }
-            DB::afterCommit(fn () => rescue(fn () => Storage::disk('public')->delete($image->path)));
+            if (! $image->isSeedFallback()) {
+                DB::afterCommit(fn () => rescue(fn () => Storage::disk('public')->delete($image->path)));
+            }
         });
 
         return response()->noContent();

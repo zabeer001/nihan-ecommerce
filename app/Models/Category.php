@@ -9,7 +9,7 @@ class Category extends Model
 {
     protected $guarded = [];
 
-    protected $casts = ['active' => 'boolean'];
+    protected $casts = ['active' => 'boolean', 'content_cards' => 'array', 'usage_guide' => 'array'];
 
     public function products(): BelongsToMany
     {

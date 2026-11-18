@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Variant;
 use App\Services\Orders\StorefrontQuote;
+use App\Services\Orders\OrderCustomer;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,7 @@ class OrderWorkflowService
     public function __construct(
         private readonly StockMovementService $stockMovements,
         private readonly StorefrontQuote $storefrontQuote,
+        private readonly OrderCustomer $orderCustomer,
     ) {}
 
     public function create(array $data, ?int $userId, ?string $trackingHash = null): Order
@@ -95,6 +97,7 @@ class OrderWorkflowService
                     ]);
                     $this->stockMovements->record($variant, -$line['quantity'], 'Order created', $userId, $order->id);
                 }
+                $order->update(['customer_id' => $this->orderCustomer->resolve($order)->id]);
                 DB::table('order_status_events')->insert([
                     'order_id' => $order->id,
                     'user_id' => $userId,

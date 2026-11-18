@@ -36,6 +36,7 @@ class VariantSaveService
             'sku' => ['required', 'string', 'max:255', Rule::unique('variants')->ignore($id)],
             'attributes' => 'present|array|max:10',
             'attributes.*' => 'required|string|max:100',
+            'compare_at_price_cents' => 'nullable|integer|min:0|max:100000000',
             'price_cents' => 'required|integer|min:0|max:100000000',
             'name' => 'nullable|string|max:255',
             'barcode' => 'nullable|string|max:255',
@@ -65,6 +66,11 @@ class VariantSaveService
                 }
 
                 $variant = $id ? Variant::where('product_id', $product)->whereKey($id)->lockForUpdate()->firstOrFail() : new Variant(['product_id' => $product]);
+                $original = array_key_exists('compare_at_price_cents', $validated)
+                    ? $validated['compare_at_price_cents'] : $variant->compare_at_price_cents;
+                if ($original !== null && $original <= $validated['price_cents']) {
+                    throw ValidationException::withMessages(['compare_at_price_cents' => 'The price before discount must be greater than the retail / discounted price.']);
+                }
                 $openingStock = $validated['opening_stock'] ?? 0;
                 unset($validated['opening_stock']);
                 $variant->fill($validated)->save();

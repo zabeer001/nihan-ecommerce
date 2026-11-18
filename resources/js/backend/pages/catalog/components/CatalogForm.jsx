@@ -1,4 +1,5 @@
 import { Field, input } from '../catalogUi';
+import CategoryUsageGuideForm from './CategoryUsageGuideForm';
 export default function CatalogForm({
   form,
   section,
@@ -15,6 +16,47 @@ export default function CatalogForm({
 <Field label="Active">
         <input type="checkbox" className="checkbox" checked={form.active} onChange={e => change('active', e.target.checked)} />
       </Field>
+<div className="md:col-span-2 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">Content cards</h2>
+          <button type="button" className="btn btn-sm" disabled={(form.content_cards || []).length >= 4}
+            onClick={() => change('content_cards', [...(form.content_cards || []), { label: '', title: '', description: '', color: '#c9915a' }])}>Add card</button>
+        </div>
+        <p className="text-sm opacity-70">Add up to four cards. Cards appear in this order. Remove all cards to hide the section.</p>
+        {(form.content_cards || []).map((card, index) => <fieldset key={index} className="rounded-box border border-base-300 p-4 grid gap-4 md:grid-cols-2">
+          <legend className="px-2 font-semibold">Card {index + 1}</legend>
+          <Field label="Label">
+            <input className={input} required maxLength={80} value={card.label || ''}
+              onChange={e => change('content_cards', form.content_cards.map((item, i) => i === index ? { ...item, label: e.target.value } : item))} />
+          </Field>
+          <Field label="Title">
+            <input className={input} required maxLength={150} value={card.title || ''}
+              onChange={e => change('content_cards', form.content_cards.map((item, i) => i === index ? { ...item, title: e.target.value } : item))} />
+          </Field>
+          <div className="md:col-span-2"><Field label="Description">
+            <textarea className="textarea textarea-bordered w-full" required maxLength={500} rows={3} value={card.description || ''}
+              onChange={e => change('content_cards', form.content_cards.map((item, i) => i === index ? { ...item, description: e.target.value } : item))} />
+          </Field></div>
+          <Field label="Color">
+            <input type="color" className="h-10 w-20 cursor-pointer" value={card.color || '#c9915a'}
+              onChange={e => change('content_cards', form.content_cards.map((item, i) => i === index ? { ...item, color: e.target.value } : item))} />
+          </Field>
+          <div className="flex flex-wrap items-end gap-2">
+            <button type="button" className="btn btn-sm" disabled={index === 0} onClick={() => {
+              const cards = [...form.content_cards];
+              [cards[index - 1], cards[index]] = [cards[index], cards[index - 1]];
+              change('content_cards', cards);
+            }}>Move up</button>
+            <button type="button" className="btn btn-sm" disabled={index === form.content_cards.length - 1} onClick={() => {
+              const cards = [...form.content_cards];
+              [cards[index], cards[index + 1]] = [cards[index + 1], cards[index]];
+              change('content_cards', cards);
+            }}>Move down</button>
+            <button type="button" className="btn btn-sm btn-error btn-outline" onClick={() => change('content_cards', form.content_cards.filter((_, i) => i !== index))}>Remove card</button>
+          </div>
+        </fieldset>)}
+      </div>
+<CategoryUsageGuideForm value={form.usage_guide} onChange={guide => change('usage_guide', guide)} />
 </> : <>
 <Field label="Slug">
         <input required className={input} value={form.slug} onChange={e => change('slug', e.target.value)} />

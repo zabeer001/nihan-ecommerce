@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\HomepageContentController;
 use App\Http\Controllers\Api\Orders\OrderController;
 use App\Http\Controllers\Api\Orders\StorefrontOrderController;
 use App\Http\Controllers\Api\Product\ProductController;
+use App\Http\Controllers\Api\Product\ProductReviewController;
 use App\Http\Controllers\Api\Product\StorefrontProductController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\User\UserController;
@@ -26,9 +27,14 @@ Route::get('profile', fn (Request $request) => response()->json([
 
 Route::pattern('role', '[0-9]+');
 
+Route::get('storefront/header-logos', [\App\Http\Controllers\Api\HeaderLogoController::class, 'show'])->middleware('throttle:120,1');
+
+Route::get('storefront/reviews', [ProductReviewController::class, 'homepage'])->middleware('throttle:120,1');
 Route::get('storefront/categories', [StorefrontProductController::class, 'categories']);
 Route::get('storefront/homepage-content', [HomepageContentController::class, 'storefront'])->middleware('throttle:120,1');
 Route::get('storefront/products', [StorefrontProductController::class, 'index']);
+Route::get('storefront/products/{slug}/reviews', [ProductReviewController::class, 'storefront'])->middleware('throttle:120,1');
+Route::post('storefront/products/{slug}/reviews', [ProductReviewController::class, 'submit'])->middleware('throttle:5,1');
 Route::get('storefront/products/{slug}', [StorefrontProductController::class, 'show']);
 Route::prefix('storefront')->middleware('throttle:120,1')->group(function () {
     Route::post('quote', [StorefrontOrderController::class, 'quote']);
@@ -37,12 +43,17 @@ Route::prefix('storefront')->middleware('throttle:120,1')->group(function () {
 });
 
 Route::prefix('admin')->middleware(['auth:api', 'active_account'])->group(function () {
+    Route::get('header-logos', [\App\Http\Controllers\Api\HeaderLogoController::class, 'show'])->middleware('permission:homepage.manage');
+    Route::post('header-logos', [\App\Http\Controllers\Api\HeaderLogoController::class, 'update'])->middleware('permission:homepage.manage');
     Route::get('homepage-content', [HomepageContentController::class, 'index'])->middleware('permission:homepage.manage');
     Route::post('homepage-content', [HomepageContentController::class, 'store'])->middleware('permission:homepage.manage');
     Route::put('homepage-content/{homepageContent}', [HomepageContentController::class, 'update'])->middleware('permission:homepage.manage');
     Route::delete('homepage-content/{homepageContent}', [HomepageContentController::class, 'destroy'])->middleware('permission:homepage.manage');
+    Route::post('homepage-content/{homepageContent}/media', [HomepageContentController::class, 'upload'])->middleware('permission:homepage.manage');
+    Route::delete('homepage-content/{homepageContent}/media/{media}', [HomepageContentController::class, 'destroyMedia'])->middleware('permission:homepage.manage');
     Route::get('summary', [DashboardController::class, 'summary'])->middleware('permission:dashboard.view');
     Route::get('categories', [CategoryController::class, 'categories'])->middleware('permission:categories.view,products.create,products.update');
+    Route::get('categories/{category}', [CategoryController::class, 'show'])->middleware('permission:categories.update');
     Route::post('categories', [CategoryController::class, 'category'])->middleware('permission:categories.create');
     Route::put('categories/{id}', [CategoryController::class, 'category'])->middleware('permission:categories.update');
     Route::delete('categories/{id}', [CategoryController::class, 'deleteCategory'])->middleware('permission:categories.delete');
@@ -51,6 +62,10 @@ Route::prefix('admin')->middleware(['auth:api', 'active_account'])->group(functi
     Route::post('products/image-uploads', [ProductController::class, 'stageImage'])->middleware('permission:products.create');
     Route::post('products/{product}/image-uploads', [ProductController::class, 'stageImage'])->middleware('permission:products.update');
     Route::get('products/{product}', [ProductController::class, 'show'])->middleware('permission:products.view,products.update');
+    Route::get('products/{product}/reviews', [ProductReviewController::class, 'index'])->middleware('permission:products.view,products.update');
+    Route::post('products/{product}/reviews', [ProductReviewController::class, 'store'])->middleware('permission:products.update');
+    Route::put('products/{product}/reviews/{review}', [ProductReviewController::class, 'update'])->middleware('permission:products.update');
+    Route::delete('products/{product}/reviews/{review}', [ProductReviewController::class, 'destroy'])->middleware('permission:products.update');
     Route::put('products/{product}', [ProductController::class, 'update'])->middleware('permission:products.update');
     Route::delete('products/{product}', [ProductController::class, 'destroy'])->middleware('permission:products.delete');
     Route::get('variants', [ProductController::class, 'variants'])->middleware('permission:inventory.view');

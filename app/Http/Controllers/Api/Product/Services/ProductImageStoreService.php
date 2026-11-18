@@ -25,6 +25,7 @@ class ProductImageStoreService
         try {
             return DB::transaction(function () use ($id, $validated, $path) {
                 Product::whereKey($id)->lockForUpdate()->firstOrFail();
+                ProductImage::removeSeedFallbacks($id);
                 $shared = ProductImage::where('product_id', $id)->whereNull('variant_id');
                 $primary = $validated['primary'] || ! $shared->exists();
                 if ($primary) {

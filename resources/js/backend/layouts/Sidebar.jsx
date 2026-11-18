@@ -20,6 +20,7 @@ const menuItems = [
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Categories', href: '/dashboard/categories', icon: ClipboardList, permissions: ['categories.view', 'categories.create'] },
     { label: 'Products', href: '/dashboard/products', icon: PackageSearch, permissions: ['products.view', 'products.create'] },
+    { label: 'Header logos', href: '/dashboard/header-logos', icon: Settings, permissions: ['homepage.manage'] },
     { label: 'Homepage', href: '/dashboard/homepage-content', icon: PanelsTopLeft, permissions: ['homepage.manage'] },
     { label: 'Inventory', href: '/dashboard/inventory', icon: WalletCards, permissions: ['inventory.view'] },
     { label: 'Orders', href: '/dashboard/orders', icon: Receipt, permissions: ['orders.view', 'orders.create'] },
