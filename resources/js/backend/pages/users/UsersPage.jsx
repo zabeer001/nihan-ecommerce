@@ -11,6 +11,8 @@ export default function UsersPage() {
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
     const [editing, setEditing] = useState(null);
+    const [creating, setCreating] = useState(false);
+    const [form, setForm] = useState({ name: '', email: '', role_id: '', password: '', password_confirmation: '' });
     const params = new URLSearchParams({ page, search });
 
     const users = useQuery({
@@ -39,15 +41,52 @@ export default function UsersPage() {
         setPage(nextPage);
     }
 
+    const creation = useMutation({
+        mutationFn: () => request('users', { method: 'POST', body: { ...form, role_id: Number(form.role_id) } }),
+        onSuccess: async () => {
+            setCreating(false);
+            setForm({ name: '', email: '', role_id: '', password: '', password_confirmation: '' });
+            await queryClient.invalidateQueries({ queryKey: ['role-assignment-users'] });
+        },
+    });
+
     if (loading) return <p role="status">Loading permissions…</p>;
     if (!canManage) return <p className="alert alert-error">You do not have access to this page.</p>;
 
     return <section className="space-y-5">
-        <h1 className="text-3xl font-bold">Users</h1>
-        {[users.error, roles.error, assignment.error].filter(Boolean).map((error, index) =>
+        <div className="flex items-center justify-between gap-3">
+            <h1 className="text-3xl font-bold">Users</h1>
+            <button type="button" className="btn btn-primary" onClick={() => { creation.reset(); setCreating(true); }}>Add user</button>
+        </div>
+        {[users.error, roles.error, assignment.error, creation.error].filter(Boolean).map((error, index) =>
             <p key={index} role="alert" className="alert alert-error">{error.message}</p>
         )}
         {assignment.isSuccess && <p role="status" className="alert alert-success">Role assigned.</p>}
+        {creation.isSuccess && <p role="status" className="alert alert-success">User created.</p>}
+        {creating && <form className="rounded-box bg-base-100 p-5" onSubmit={event => { event.preventDefault(); creation.mutate(); }}>
+            <h2 className="text-xl font-semibold mb-4">Add user</h2>
+            <fieldset disabled={creation.isPending} className="grid gap-4 md:grid-cols-2">
+                {['name', 'email', 'password', 'password_confirmation'].map(name => <label key={name} className="grid gap-1">
+                    {{ name: 'Full name', email: 'Email', password: 'Password', password_confirmation: 'Confirm password' }[name]}
+                    <input className="input input-bordered w-full" required name={name} value={form[name]}
+                        type={name.startsWith('password') ? 'password' : name === 'email' ? 'email' : 'text'}
+                        minLength={name.startsWith('password') ? 8 : undefined} maxLength={name === 'name' || name === 'email' ? 255 : undefined}
+                        autoComplete={name.startsWith('password') ? 'new-password' : name}
+                        onChange={event => setForm(current => ({ ...current, [name]: event.target.value }))} />
+                </label>)}
+                <label className="grid gap-1">Role
+                    <select className="select select-bordered w-full" required value={form.role_id}
+                        onChange={event => setForm(current => ({ ...current, role_id: event.target.value }))}>
+                        <option value="">Choose a role</option>
+                        {roles.data?.filter(role => role.assignable).map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
+                    </select>
+                </label>
+                <div className="flex items-end gap-2 md:col-span-2">
+                    <button className="btn btn-primary" disabled={!roles.data}>{creation.isPending ? 'Creating…' : 'Create user'}</button>
+                    <button type="button" className="btn" onClick={() => { setCreating(false); creation.reset(); setForm({ name: '', email: '', role_id: '', password: '', password_confirmation: '' }); }}>Cancel</button>
+                </div>
+            </fieldset>
+        </form>}
 
         <fieldset disabled={assignment.isPending} className="rounded-box bg-base-100 p-5 space-y-4">
             <form className="flex flex-wrap gap-2" onSubmit={event => {

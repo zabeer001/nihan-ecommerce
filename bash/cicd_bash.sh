@@ -16,8 +16,14 @@ MODE="${1:-local}"
 MODE_ARGUMENT="${2:-}"
 PULL_LATEST=""
 COMMIT_MESSAGE=""
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT_PROJECT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+    SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+    SCRIPT_PROJECT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+else
+    # SSH streams the local script to bash from the production checkout.
+    SCRIPT_PROJECT_DIR="${PWD}"
+    SCRIPT_DIR="${SCRIPT_PROJECT_DIR}/bash"
+fi
 ENV_FILE="${SCRIPT_PROJECT_DIR}/.env"
 
 read_env_value() {
@@ -108,16 +114,20 @@ if [[ "${MODE}" == "production" && ! -d "${VPS_PROJECT_DIR}" ]]; then
     VPS_APP_CONTAINER="${VPS_APP_CONTAINER:-$(read_env_value VPS_APP_CONTAINER)}"
     printf -v QUOTED_REMOTE_DIR '%q' "${VPS_PROJECT_DIR}"
     printf -v QUOTED_APP_CONTAINER '%q' "${VPS_APP_CONTAINER}"
-    REMOTE_COMMAND="cd ${QUOTED_REMOTE_DIR} && git restore --source=HEAD --staged --worktree -- public/build && git clean -fd -- public/build && git pull --ff-only origin main && { test -f bash/cicd_bash.sh || { echo 'bash/cicd_bash.sh is not present on origin/main. Run the local publish command first.' >&2; exit 1; }; } && chmod +x bash/cicd_bash.sh && VPS_PROJECT_DIR=${QUOTED_REMOTE_DIR} VPS_APP_CONTAINER=${QUOTED_APP_CONTAINER} ./bash/cicd_bash.sh production --already-pulled"
+    REMOTE_COMMAND="cd ${QUOTED_REMOTE_DIR} && git restore --source=HEAD --staged --worktree -- public/build && git clean -fd -- public/build && git pull --ff-only origin main && VPS_PROJECT_DIR=${QUOTED_REMOTE_DIR} VPS_APP_CONTAINER=${QUOTED_APP_CONTAINER} bash -s -- production --already-pulled"
 
     echo "==> Connecting to the production server and starting deployment"
-    exec "${SSH_COMMAND[@]}" "${SSH_TARGET}" "${REMOTE_COMMAND}"
+    exec "${SSH_COMMAND[@]}" "${SSH_TARGET}" "${REMOTE_COMMAND}" < "${SCRIPT_DIR}/cicd_bash.sh"
 fi
 
 command -v docker >/dev/null 2>&1 || { echo "Docker is required." >&2; exit 1; }
 
 app() {
-    docker exec "${APP_CONTAINER}" "$@"
+    if [[ "${MODE}" == "production" && "${1:-}" == "php" ]]; then
+        docker exec --user sail "${APP_CONTAINER}" "$@"
+    else
+        docker exec "${APP_CONTAINER}" "$@"
+    fi
 }
 
 require_running_container() {
@@ -163,6 +173,31 @@ start_production_database() {
     echo "MySQL did not become healthy (status: ${mysql_status:-unknown})." >&2
     docker logs --tail 80 "${mysql_container_id}" >&2 || true
     exit 1
+}
+
+ensure_production_database_network() {
+    local mysql_container_id
+    local network
+    local app_network
+    mysql_container_id="$(docker compose -f "${PROJECT_DIR}/docker-compose.prod.yml" ps -q mysql)"
+
+    # VPS_APP_CONTAINER may name an existing web container outside this Compose
+    # project. Attach it to MySQL's Compose network without recreating it.
+    while IFS= read -r network; do
+        [[ -n "${network}" ]] || continue
+        if [[ "$(docker network inspect -f '{{index .Labels "com.docker.compose.network"}}' "${network}")" != "sail" ]]; then
+            continue
+        fi
+        app_network="$(docker inspect -f "{{with index .NetworkSettings.Networks \"${network}\"}}{{.NetworkID}}{{end}}" "${APP_CONTAINER}")"
+        if [[ -z "${app_network}" ]]; then
+            step "Connecting Laravel to the production database network (${network})"
+            docker network connect "${network}" "${APP_CONTAINER}"
+        fi
+        return 0
+    done < <(docker inspect -f '{{range $name, $network := .NetworkSettings.Networks}}{{println $name}}{{end}}' "${mysql_container_id}")
+
+    echo "Could not find the production MySQL Compose sail network." >&2
+    return 1
 }
 
 step() {
@@ -226,6 +261,7 @@ require_running_container
 
 step "Starting production database"
 start_production_database
+ensure_production_database_network
 
 if ! app getent hosts mysql >/dev/null 2>&1; then
     echo "The Laravel container cannot resolve the MySQL service hostname." >&2
@@ -242,6 +278,13 @@ fi
 
 step "Installing production PHP dependencies"
 app composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+
+step "Ensuring Laravel storage and cache permissions"
+docker exec --user root "${APP_CONTAINER}" sh -ec '
+    chown -R sail:sail storage bootstrap/cache
+    find storage bootstrap/cache -type d -exec chmod 2775 {} +
+    find storage bootstrap/cache -type f -exec chmod 664 {} +
+'
 
 step "Running outstanding production migrations"
 app php artisan migrate --force

@@ -89,6 +89,7 @@ Route::prefix('admin')->middleware(['auth:api', 'active_account'])->group(functi
 
     Route::middleware('permission:roles.manage')->group(function () {
         Route::get('users', [UserController::class, 'index']);
+        Route::post('users', [UserController::class, 'store']);
         Route::get('roles/options', [RoleController::class, 'options']);
         Route::put('roles/assignment', [RoleController::class, 'assign']);
         Route::apiResource('roles', RoleController::class)->only(['index', 'store', 'update', 'destroy']);

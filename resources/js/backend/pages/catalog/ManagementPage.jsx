@@ -152,6 +152,7 @@ export default function ManagementPage({
               <tr>
                 <th>ID</th>
                 <th>{section === 'orders' ? 'Customer' : section === 'inventory' ? 'SKU' : 'Name'}</th>
+                {section === 'inventory' && <th>Variant name</th>}
                 {section === 'orders' && <th>Source</th>}
                 <th>Details</th>
                 <th>Actions</th>
@@ -159,7 +160,8 @@ export default function ManagementPage({
             </thead>
             <tbody>{rows.map(row => <tr key={row.id}>
                 <td>{row.id}</td>
-                <td>{row.name || row.sku || row.customer_name}</td>
+                <td>{section === 'inventory' ? row.sku : row.name || row.sku || row.customer_name}</td>
+                {section === 'inventory' && <td>{row.name || '—'}</td>}
                 {section === 'orders' && <td>{row.source === 'storefront' ? 'Storefront' : 'Staff'}</td>}
                 <td>{section === 'categories' ? row.active ? 'Active' : 'Inactive' : section === 'products' ? row.status : section === 'inventory' ? `${row.product_name} · Stock ${row.stock} · ${money(row.price_cents)}` : `${row.status} · ${money(row.total_cents)}`}</td>
                 <td className="flex gap-2">{section === 'products' && canView && <><Link className="btn btn-sm" href={`/dashboard/products/${row.id}`}>Show</Link><Link className="btn btn-sm" href={`/dashboard/products/${row.id}/reviews`}>Reviews</Link></>}{canUpdate && ['categories', 'products'].includes(section) && <button className="btn btn-sm" onClick={() => {
