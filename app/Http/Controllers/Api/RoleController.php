@@ -25,15 +25,15 @@ class RoleController extends Controller
             'id' => $role->id,
             'name' => $role->name,
             'permissions' => $role->permissions,
-            'assignable' => $this->canAssignRole($request->user(), $role),
+            'assignable' => $request->user()->canAssignRole($role),
             'protected' => in_array($role->name, config('rbac.system_roles'), true),
         ]));
     }
 
-    public function options(): JsonResponse
+    public function options(Request $request): JsonResponse
     {
         return $this->successResponse(Permission::query()->where('guard_name', 'api')
-            ->where('name', '!=', 'roles.manage')->orderBy('name')->get(['id', 'name']));
+            ->when(! $request->user()->isSoftwareEngineer(), fn ($query) => $query->where('name', '!=', 'roles.manage'))->orderBy('name')->get(['id', 'name']));
     }
 
     public function store(Request $request): JsonResponse
@@ -95,17 +95,12 @@ class RoleController extends Controller
             $user = User::query()->where('email', $data['email'])->lockForUpdate()->firstOrFail();
             $actor = $request->user();
 
-            abort_unless($actor->canChangeRoleOf($user) && $this->canAssignRole($actor, $role), 403);
+            abort_unless($actor->canChangeRoleOf($user) && $actor->canAssignRole($role), 403);
 
             $user->update(['role' => $role->name]);
         });
 
         return $this->successResponse(message: 'Role assigned.');
-    }
-
-    private function canAssignRole(User $actor, Role $role): bool
-    {
-        return $role->name !== 'superadmin' && ($role->name !== 'admin' || $actor->role === 'superadmin');
     }
 
     private function validateRole(Request $request, ?Role $role = null): array
@@ -115,7 +110,7 @@ class RoleController extends Controller
                 Rule::unique('roles')->where('guard_name', 'api')->ignore($role)],
             'permission_ids' => ['present', 'array'],
             'permission_ids.*' => ['integer', 'distinct', Rule::exists('permissions', 'id')->where(
-                fn ($query) => $query->where('guard_name', 'api')->where('name', '!=', 'roles.manage')
+                fn ($query) => $query->where('guard_name', 'api')->when(! $request->user()->isSoftwareEngineer(), fn ($query) => $query->where('name', '!=', 'roles.manage'))
             )],
         ]);
     }

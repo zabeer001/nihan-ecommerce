@@ -33,6 +33,7 @@ class UserIndexService
             'status' => 'success',
             'data' => $query->paginate(20, ['id', 'name', 'email', 'role'])->through(fn (User $user) => [
                 ...$user->toArray(),
+                'can_delete' => $request->user()->canDeleteUser($user),
                 'can_change_role' => $request->user()->canChangeRoleOf($user),
             ]),
         ]);

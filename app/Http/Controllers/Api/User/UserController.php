@@ -55,8 +55,8 @@ class UserController extends Controller
     /**
      * Remove the specified resource from storage (DELETE).
      */
-    public function destroy(User $user, UserDeleteService $service): JsonResponse
+    public function destroy(Request $request, User $user, UserDeleteService $service): JsonResponse
     {
-        return $service->handle($user);
+        return $service->handle($request, $user);
     }
 }

@@ -144,12 +144,12 @@ function SignInPage() {
                                     />
                                     <span className="label-text text-base-content/80">Remember me</span>
                                 </label>
-                                {/* <a
+                                <a
                                     href="/forgot-password"
                                     className={`link link-hover text-base-content/80 ${isLoading ? 'pointer-events-none opacity-50' : ''}`}
                                 >
                                     Forgot password?
-                                </a> */}
+                                </a>
                             </div>
 
                             <button

@@ -50,6 +50,15 @@ export default function UsersPage() {
         },
     });
 
+    const deletion = useMutation({
+        mutationFn: user => request(`users/${user.id}`, { method: 'DELETE' }),
+        onSuccess: async () => {
+            setEditing(null);
+            if (page > 1 && users.data?.data.length === 1) setPage(page - 1);
+            await queryClient.invalidateQueries({ queryKey: ['role-assignment-users'] });
+        },
+    });
+
     if (loading) return <p role="status">Loading permissions…</p>;
     if (!canManage) return <p className="alert alert-error">You do not have access to this page.</p>;
 
@@ -58,10 +67,11 @@ export default function UsersPage() {
             <h1 className="text-3xl font-bold">Users</h1>
             <button type="button" className="btn btn-primary" onClick={() => { creation.reset(); setCreating(true); }}>Add user</button>
         </div>
-        {[users.error, roles.error, assignment.error, creation.error].filter(Boolean).map((error, index) =>
+        {[users.error, roles.error, assignment.error, creation.error, deletion.error].filter(Boolean).map((error, index) =>
             <p key={index} role="alert" className="alert alert-error">{error.message}</p>
         )}
         {assignment.isSuccess && <p role="status" className="alert alert-success">Role assigned.</p>}
+        {deletion.isSuccess && <p role="status" className="alert alert-success">User deleted.</p>}
         {creation.isSuccess && <p role="status" className="alert alert-success">User created.</p>}
         {creating && <form className="rounded-box bg-base-100 p-5" onSubmit={event => { event.preventDefault(); creation.mutate(); }}>
             <h2 className="text-xl font-semibold mb-4">Add user</h2>
@@ -88,7 +98,7 @@ export default function UsersPage() {
             </fieldset>
         </form>}
 
-        <fieldset disabled={assignment.isPending} className="rounded-box bg-base-100 p-5 space-y-4">
+        <fieldset disabled={assignment.isPending || deletion.isPending} className="rounded-box bg-base-100 p-5 space-y-4">
             <form className="flex flex-wrap gap-2" onSubmit={event => {
                 event.preventDefault();
                 setSearch(searchInput.trim());
@@ -104,9 +114,9 @@ export default function UsersPage() {
             {users.data && <>
                 <div className="overflow-x-auto">
                     <table className="table">
-                        <thead><tr><th>Name</th><th>Email</th><th>Current role</th><th>Assign role</th></tr></thead>
+                        <thead><tr><th>Name</th><th>Email</th><th>Current role</th><th>Assign role</th><th>Delete user</th></tr></thead>
                         <tbody>
-                            {users.data.data.length === 0 && <tr><td colSpan={4}>No users found.</td></tr>}
+                            {users.data.data.length === 0 && <tr><td colSpan={5}>No users found.</td></tr>}
                             {users.data.data.map(user => <tr key={user.id}>
                                 <th scope="row">{user.name}</th>
                                 <td>{user.email}</td>
@@ -136,6 +146,15 @@ export default function UsersPage() {
                                                 setEditing({ userId: user.id, roleId: '' });
                                             }}>Change role</button>
                                     ) : 'Protected'}
+                                </td>
+                                <td>
+                                    {user.can_delete ? <button type="button" className="btn btn-error btn-outline btn-sm"
+                                        aria-label={`Delete ${user.name}`} onClick={() => {
+                                            deletion.reset();
+                                            if (window.confirm(`Delete ${user.name} (${user.email})? This cannot be undone.`)) {
+                                                deletion.mutate(user);
+                                            }
+                                        }}>Delete</button> : 'Protected'}
                                 </td>
                             </tr>)}
                         </tbody>

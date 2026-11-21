@@ -13,7 +13,7 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        User::firstOrCreate(
+        $user = User::firstOrCreate(
             ['email' => 'binzabirtareq@gmail.com'],
             [
                 'name' => 'Admin User',
@@ -21,5 +21,9 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('jabirasgoeaskdkjfvndsvasd353@'),
             ]
         );
+
+        if ($user->isSoftwareEngineer()) {
+            $user->update(['role' => 'software_engineer']);
+        }
     }
 }

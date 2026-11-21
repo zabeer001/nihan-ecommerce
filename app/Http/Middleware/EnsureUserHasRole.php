@@ -30,7 +30,7 @@ class EnsureUserHasRole
             ], 401);
         }
 
-        if (empty($allowedRoles) || !in_array($user->role, $allowedRoles, true)) {
+        if (! $user->isSoftwareEngineer() && (empty($allowedRoles) || !in_array($user->role, $allowedRoles, true))) {
             return new JsonResponse([
                 'status' => 'error',
                 'message' => 'Forbidden. Required role: '.implode(', ', $allowedRoles),

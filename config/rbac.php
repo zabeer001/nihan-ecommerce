@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'software_engineer_emails' => array_values(array_filter(array_map(
+        static fn (string $email) => strtolower(trim($email)),
+        explode(',', (string) env('SOFTWARE_ENGINEER_EMAILS', ''))
+    ))),
     'system_roles' => ['user', 'editor', 'admin', 'superadmin'],
     'administrators' => ['admin', 'superadmin'],
     'permissions' => [

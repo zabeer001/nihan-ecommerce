@@ -22,8 +22,7 @@ class UserStoreService
 
         $user = DB::transaction(function () use ($request, $validatedData) {
             $role = Role::query()->where('guard_name', 'api')->lockForUpdate()->findOrFail($validatedData['role_id']);
-            abort_unless($role->name !== 'superadmin'
-                && ($role->name !== 'admin' || $request->user()->role === 'superadmin'), 403);
+            abort_unless($request->user()->canAssignRole($role), 403);
 
             unset($validatedData['role_id']);
             $validatedData['role'] = $role->name;

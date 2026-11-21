@@ -54,16 +54,46 @@ class User extends Authenticatable implements JWTSubject
             'password' => 'hashed',
         ];
     }
+    public function isSoftwareEngineer(): bool
+    {
+        return in_array(strtolower(trim((string) $this->email)), config('rbac.software_engineer_emails', []), true);
+    }
+
+    public function canAssignRole(Role $role): bool
+    {
+        return $this->isSoftwareEngineer()
+            || ($role->name !== 'superadmin' && ($role->name !== 'admin' || $this->role === 'superadmin'));
+    }
+
     public function canChangeRoleOf(User $user): bool
     {
+        if ($user->isSoftwareEngineer() || $user->role === 'software_engineer') {
+            return false;
+        }
+
+        if ($this->isSoftwareEngineer()) {
+            return true;
+        }
+
         return ! $this->is($user)
             && $user->role !== 'superadmin'
             && ($user->role !== 'admin' || $this->role === 'superadmin');
     }
 
+    public function canDeleteUser(User $user): bool
+    {
+        return ! $this->is($user)
+            && ! $user->isSoftwareEngineer()
+            && $this->canChangeRoleOf($user);
+    }
+
     /** @return list<string> */
     public function permissionNames(): array
     {
+        if ($this->isSoftwareEngineer()) {
+            return \Spatie\Permission\Models\Permission::query()->where('guard_name', 'api')->orderBy('name')->pluck('name')->all();
+        }
+
         $role = Role::query()->where('guard_name', 'api')->where('name', $this->role)->first();
 
         return $role && $role->name === $this->role
