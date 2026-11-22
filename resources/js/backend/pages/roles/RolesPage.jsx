@@ -26,7 +26,7 @@ export default function RolesPage({ mode, roleId }) {
         setNotice('');
         Promise.all([
             mode === 'create' ? [] : request('roles'),
-            isFormPage ? request('roles/options') : [],
+            isFormPage || isShowPage ? request('roles/options') : [],
         ])
             .then(([roles, permissions]) => {
                 if (!active) return;
@@ -116,16 +116,13 @@ export default function RolesPage({ mode, roleId }) {
             </div>}
             {isShowPage && (role
                 ? <div className="rounded-box bg-base-100 p-5 space-y-4">
-                    <dl className="grid gap-3">
-                        <div><dt className="font-semibold">Role name</dt><dd>{role.name}</dd></div>
-                    </dl>
-                    <div className="flex flex-wrap gap-2">
-                        <Link href="/dashboard/roles" className="btn">Back to roles</Link>
-                        {!role.protected && <>
-                            <Link href={`/dashboard/roles/${role.id}/edit`} className="btn">Edit</Link>
-                            <button type="button" className="btn btn-error btn-outline" onClick={() => remove(role)}>Delete</button>
-                        </>}
-                    </div>
+                    <Field label="Role name">
+                        <input className={input} value={role.name} disabled />
+                    </Field>
+                    <RolePermissions
+                        permissions={[...new Map([...permissions, ...role.permissions].map(permission => [permission.id, permission])).values()]}
+                        selectedIds={role.permissions.map(permission => permission.id)} disabled />
+                    <Link href="/dashboard/roles" className="btn">Back to roles</Link>
                 </div>
                 : error ? <Link href="/dashboard/roles" className="btn">Back to roles</Link> : <p role="status">Loading role…</p>)}
             {isFormPage && form && <form onSubmit={save} className="rounded-box bg-base-100 p-5 space-y-4">
@@ -134,7 +131,20 @@ export default function RolesPage({ mode, roleId }) {
                         title="Use lowercase letters, numbers, underscores, or hyphens. Start with a letter."
                         value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} />
                 </Field>
-                <fieldset className="space-y-4">
+                <RolePermissions permissions={permissions} selectedIds={form.permission_ids}
+                    onChange={permission_ids => setForm({ ...form, permission_ids })} />
+                <div className="flex gap-2">
+                    <button className="btn btn-primary">Save role</button>
+                    <Link href="/dashboard/roles" className="btn">Cancel</Link>
+                </div>
+            </form>}
+        </fieldset>
+    </section>;
+}
+
+function RolePermissions({ permissions, selectedIds, onChange, disabled = false }) {
+    return (
+    <fieldset disabled={disabled} className="space-y-4">
                     <legend className="mb-2 font-medium">Permissions</legend>
                     {Object.entries(permissions.reduce((groups, permission) => {
                         const [module] = permission.name.split('.');
@@ -145,23 +155,14 @@ export default function RolesPage({ mode, roleId }) {
                             <legend className="px-1 font-medium capitalize">{module}</legend>
                             {options.map(permission => <label className="flex items-center gap-2" key={permission.id}>
                         <input type="checkbox" className="checkbox checkbox-sm"
-                            checked={form.permission_ids.includes(permission.id)}
-                            onChange={event => setForm({
-                                ...form,
-                                permission_ids: event.target.checked
-                                    ? [...form.permission_ids, permission.id]
-                                    : form.permission_ids.filter(id => id !== permission.id),
-                            })} />
+                            checked={selectedIds.includes(permission.id)}
+                            onChange={event => onChange?.(event.target.checked
+                                ? [...selectedIds, permission.id]
+                                : selectedIds.filter(id => id !== permission.id))} />
                         {permission.name}
                             </label>)}
                         </fieldset>
                     )}
                 </fieldset>
-                <div className="flex gap-2">
-                    <button className="btn btn-primary">Save role</button>
-                    <Link href="/dashboard/roles" className="btn">Cancel</Link>
-                </div>
-            </form>}
-        </fieldset>
-    </section>;
+    );
 }

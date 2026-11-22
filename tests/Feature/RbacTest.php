@@ -172,3 +172,36 @@ it('locks the software engineer role for every actor including the engineer', fu
 
     expect($engineer->fresh()->role)->toBe('software_engineer');
 });
+
+
+it('lets the software engineer edit and delete built-in roles except superadmin', function () {
+    config(['rbac.software_engineer_emails' => ['engineer@example.com']]);
+    $engineer = User::factory()->create(['email' => 'engineer@example.com', 'role' => 'software_engineer']);
+    $this->actingAs($engineer, 'api');
+    $roles = collect($this->getJson('/api/admin/roles')->assertOk()->json('data'));
+    foreach (['admin', 'editor', 'user'] as $name) {
+        $role = Role::findByName($name, 'api');
+        expect($roles->firstWhere('id', $role->id)['protected'])->toBeFalse();
+        $this->putJson('/api/admin/roles/'.$role->id, [
+            'name' => $name, 'permission_ids' => [Permission::findByName('products.view', 'api')->id],
+        ])->assertOk();
+        $this->deleteJson('/api/admin/roles/'.$role->id)->assertOk();
+        $this->assertDatabaseMissing('roles', ['id' => $role->id]);
+    }
+
+    $superadmin = Role::findByName('superadmin', 'api');
+    expect($roles->firstWhere('id', $superadmin->id)['protected'])->toBeTrue();
+    $this->putJson('/api/admin/roles/'.$superadmin->id, [
+        'name' => 'renamed-superadmin', 'permission_ids' => [],
+    ])->assertForbidden();
+    $this->deleteJson('/api/admin/roles/'.$superadmin->id)->assertForbidden();
+});
+
+it('requires users to be reassigned before the engineer deletes their role', function () {
+    config(['rbac.software_engineer_emails' => ['engineer@example.com']]);
+    $engineer = User::factory()->create(['email' => 'engineer@example.com', 'role' => 'software_engineer']);
+    User::factory()->create(['role' => 'admin']);
+    $role = Role::findByName('admin', 'api');
+    $this->actingAs($engineer, 'api')->deleteJson('/api/admin/roles/'.$role->id)->assertUnprocessable();
+    $this->assertDatabaseHas('roles', ['id' => $role->id]);
+});

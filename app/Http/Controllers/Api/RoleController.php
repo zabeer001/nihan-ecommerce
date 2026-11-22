@@ -26,7 +26,7 @@ class RoleController extends Controller
             'name' => $role->name,
             'permissions' => $role->permissions,
             'assignable' => $request->user()->canAssignRole($role),
-            'protected' => in_array($role->name, config('rbac.system_roles'), true),
+            'protected' => $this->isProtectedRole($request->user(), $role),
         ]));
     }
 
@@ -53,7 +53,7 @@ class RoleController extends Controller
     public function update(Request $request, int $role): JsonResponse
     {
         DB::transaction(function () use ($request, $role) {
-            $role = $this->lockCustomRole($role);
+            $role = $this->lockEditableRole($request->user(), $role);
             $data = $this->validateRole($request, $role);
             $previousName = $role->name;
 
@@ -68,10 +68,10 @@ class RoleController extends Controller
         return $this->successResponse(message: 'Role updated.');
     }
 
-    public function destroy(int $role): JsonResponse
+    public function destroy(Request $request, int $role): JsonResponse
     {
-        DB::transaction(function () use ($role) {
-            $role = $this->lockCustomRole($role);
+        DB::transaction(function () use ($request, $role) {
+            $role = $this->lockEditableRole($request->user(), $role);
 
             if (User::query()->where('role', $role->name)->exists()) {
                 throw ValidationException::withMessages(['role' => 'Reassign the users with this role before deleting it.']);
@@ -115,10 +115,17 @@ class RoleController extends Controller
         ]);
     }
 
-    private function lockCustomRole(int $id): Role
+    private function isProtectedRole(User $actor, Role $role): bool
+    {
+        return $role->name === 'superadmin'
+            || $role->name === 'software_engineer'
+            || (! $actor->isSoftwareEngineer() && in_array($role->name, config('rbac.system_roles'), true));
+    }
+
+    private function lockEditableRole(User $actor, int $id): Role
     {
         $role = Role::query()->where('guard_name', 'api')->lockForUpdate()->findOrFail($id);
-        abort_if(in_array($role->name, config('rbac.system_roles'), true), 403);
+        abort_if($this->isProtectedRole($actor, $role), 403);
 
         return $role;
     }
