@@ -20,6 +20,7 @@ const menuItems = [
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Categories', href: '/dashboard/categories', icon: ClipboardList, permissions: ['categories.view', 'categories.create'] },
     { label: 'Products', href: '/dashboard/products', icon: PackageSearch, permissions: ['products.view', 'products.create'] },
+    { label: 'Add product', href: '/dashboard/products/create', icon: PackageSearch, permissions: ['products.create'] },
     { label: 'Header logos', href: '/dashboard/header-logos', icon: Settings, permissions: ['homepage.manage'] },
     { label: 'Homepage', href: '/dashboard/homepage-content', icon: PanelsTopLeft, permissions: ['homepage.manage'] },
     { label: 'Inventory', href: '/dashboard/inventory', icon: WalletCards, permissions: ['inventory.view'] },
@@ -27,6 +28,7 @@ const menuItems = [
     { label: 'Customers', href: '/dashboard/customers', icon: UsersRound, permissions: ['customers.view', 'customers.create'] },
     { label: 'Users', href: '/dashboard/users', icon: UsersRound, permissions: ['roles.manage'] },
     { label: 'Roles', href: '/dashboard/roles', icon: Settings, permissions: ['roles.manage'] },
+    { label: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 const SIDEBAR_DROPDOWN_STORAGE_KEY = 'backend_sidebar_open_dropdowns';

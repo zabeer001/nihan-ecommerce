@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\Product\ProductController;
 use App\Http\Controllers\Api\Product\ProductReviewController;
 use App\Http\Controllers\Api\Product\StorefrontProductController;
 use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\User\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +29,7 @@ Route::get('profile', fn (Request $request) => response()->json([
 Route::pattern('role', '[0-9]+');
 
 Route::get('storefront/header-logos', [\App\Http\Controllers\Api\HeaderLogoController::class, 'show'])->middleware('throttle:120,1');
+Route::get('storefront/settings', [SettingsController::class, 'show'])->middleware('throttle:120,1');
 
 Route::get('storefront/reviews', [ProductReviewController::class, 'homepage'])->middleware('throttle:120,1');
 Route::get('storefront/categories', [StorefrontProductController::class, 'categories']);
@@ -43,6 +45,9 @@ Route::prefix('storefront')->middleware('throttle:120,1')->group(function () {
 });
 
 Route::prefix('admin')->middleware(['auth:api', 'active_account'])->group(function () {
+    Route::put('settings/password', [SettingsController::class, 'password'])->middleware('throttle:5,1');
+    Route::get('settings/storefront', [SettingsController::class, 'show'])->middleware('permission:storefront.manage');
+    Route::put('settings/storefront', [SettingsController::class, 'update'])->middleware('permission:storefront.manage');
     Route::get('header-logos', [\App\Http\Controllers\Api\HeaderLogoController::class, 'show'])->middleware('permission:homepage.manage');
     Route::post('header-logos', [\App\Http\Controllers\Api\HeaderLogoController::class, 'update'])->middleware('permission:homepage.manage');
     Route::get('homepage-content', [HomepageContentController::class, 'index'])->middleware('permission:homepage.manage');
@@ -78,8 +83,9 @@ Route::prefix('admin')->middleware(['auth:api', 'active_account'])->group(functi
     Route::get('variants/{id}/movements', [InventoryController::class, 'movements'])->middleware('permission:inventory.view');
     Route::get('orders', [OrderController::class, 'orders'])->middleware('permission:orders.view');
     Route::post('orders', [OrderController::class, 'createOrder'])->middleware('permission:orders.create');
-    Route::get('orders/variants', [ProductController::class, 'orderVariants'])->middleware('permission:orders.create');
+    Route::get('orders/variants', [ProductController::class, 'orderVariants'])->middleware('permission:orders.create,orders.update');
     Route::get('orders/{id}', [OrderController::class, 'order'])->middleware('permission:orders.view');
+    Route::put('orders/{id}', [OrderController::class, 'update'])->middleware('permission:orders.update');
     Route::patch('orders/{id}/status', [OrderController::class, 'status'])->middleware('permission:orders.update');
 
     Route::get('customers', [CustomerController::class, 'index'])->middleware('permission:customers.view');

@@ -152,14 +152,14 @@ function RolePermissions({ permissions, selectedIds, onChange, disabled = false 
                         return groups;
                     }, {})).map(([module, options]) =>
                         <fieldset key={module} className="grid gap-2 rounded-box border border-base-300 p-3 sm:grid-cols-2 lg:grid-cols-3">
-                            <legend className="px-1 font-medium capitalize">{module}</legend>
+                            <legend className="px-1 font-medium capitalize">{module === 'storefront' ? 'Storefront SEO & Tracking' : module}</legend>
                             {options.map(permission => <label className="flex items-center gap-2" key={permission.id}>
                         <input type="checkbox" className="checkbox checkbox-sm"
                             checked={selectedIds.includes(permission.id)}
                             onChange={event => onChange?.(event.target.checked
                                 ? [...selectedIds, permission.id]
                                 : selectedIds.filter(id => id !== permission.id))} />
-                        {permission.name}
+                        {permission.name === 'storefront.manage' ? 'Manage Storefront SEO & Tracking' : permission.name}
                             </label>)}
                         </fieldset>
                     )}

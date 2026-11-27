@@ -70,6 +70,9 @@ class StorefrontProductController extends Controller
             'slug' => $product->slug,
             'name' => $product->name,
             'description' => $product->description,
+            'meta_title' => $product->meta_title,
+            'meta_description' => $product->meta_description,
+            'meta_pixel_id' => $product->meta_pixel_id,
             'images' => $product->images->map(fn (ProductImage $image) => $this->photo($image)),
             'has_variants' => $product->variants_count > 1 || filled($first->name)
                 || ! empty($first->attributes) || $first->images->isNotEmpty(),

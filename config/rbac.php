@@ -14,6 +14,7 @@ return [
         'inventory.view', 'inventory.update',
         'orders.view', 'orders.create', 'orders.update',
         'homepage.manage',
+        'storefront.manage',
         'roles.manage',
     ],
 ];

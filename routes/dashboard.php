@@ -5,11 +5,20 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', [DashBoardController::class, 'dashboard']);
+Route::get('/settings', fn () => Inertia::render('backend/pages/settings/SettingsPage'));
 Route::get('/{section}', function (string $section) {
     return Inertia::render('backend/pages/catalog/ManagementPage', ['section' => $section]);
 })->whereIn('section', ['categories', 'products', 'inventory', 'orders']);
 
 Route::get('/customers', fn () => Inertia::render('backend/pages/customers/CustomersPage'));
+Route::get('/orders/create', fn () => Inertia::render('backend/pages/orders/OrderPage', ['mode' => 'create']));
+Route::get('/orders/{order}/status', fn (int $order) => redirect('/dashboard/orders'))->whereNumber('order');
+foreach (['edit', 'invoice'] as $mode) {
+    Route::get('/orders/{order}/'.$mode, fn (int $order) => Inertia::render('backend/pages/orders/OrderPage', [
+        'mode' => $mode,
+        'orderId' => $order,
+    ]))->whereNumber('order');
+}
 Route::get('/categories/{category}/edit', fn (int $category) => Inertia::render('backend/pages/catalog/CategoryFormPage', [
     'categoryId' => $category,
 ]))->whereNumber('category');

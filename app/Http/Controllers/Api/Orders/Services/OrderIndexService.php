@@ -21,6 +21,9 @@ class OrderIndexService
             ->when($filters['source'] ?? null, fn ($query, $source) => $query->where('source', $source))
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
             ->latest('id')
-            ->paginate(20);
+            ->paginate(20)->through(fn (Order $order) => [
+                ...$order->toArray(),
+                'allowed_statuses' => OrderWorkflowService::allowedStatuses($order->status),
+            ]);
     }
 }

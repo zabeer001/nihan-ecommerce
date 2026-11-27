@@ -15,6 +15,20 @@ use Illuminate\Validation\ValidationException;
 
 class OrderWorkflowService
 {
+    public const PRODUCT_ADDITION_STATUSES = ['Pending', 'Confirmed', 'Processing'];
+
+    public const NEXT_STATUSES = [
+        'Pending' => 'Confirmed',
+        'Confirmed' => 'Processing',
+        'Processing' => 'Shipped',
+        'Shipped' => 'Delivered',
+    ];
+
+    public static function allowedStatuses(string $status): array
+    {
+        return isset(self::NEXT_STATUSES[$status]) ? [self::NEXT_STATUSES[$status], 'Cancelled'] : [];
+    }
+
     public function __construct(
         private readonly StockMovementService $stockMovements,
         private readonly StorefrontQuote $storefrontQuote,
@@ -128,12 +142,7 @@ class OrderWorkflowService
             if ($order->status === $status) {
                 return $order;
             }
-            $nextStatuses = [
-                'Pending' => 'Confirmed',
-                'Confirmed' => 'Processing',
-                'Processing' => 'Shipped',
-                'Shipped' => 'Delivered',
-            ];
+            $nextStatuses = self::NEXT_STATUSES;
             if (in_array($order->status, ['Delivered', 'Cancelled']) || ($status !== 'Cancelled' && ($nextStatuses[$order->status] ?? null) !== $status)) {
                 throw ValidationException::withMessages(['status' => 'Invalid status transition.']);
             }

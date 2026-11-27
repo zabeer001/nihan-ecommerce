@@ -76,6 +76,7 @@ function Navbar({ theme, themes, setTheme, signOut, currentUser }) {
                         ))}
                     </ul>
                 </div>
+                <a href="/dashboard/settings" className="btn btn-sm btn-ghost">Settings</a>
                 <button type="button" className="btn btn-sm btn-error btn-outline" onClick={signOut}>
                     Sign out
                 </button>

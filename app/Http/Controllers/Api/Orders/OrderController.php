@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Orders\Services\OrderIndexService;
 use App\Http\Controllers\Api\Orders\Services\OrderShowService;
 use App\Http\Controllers\Api\Orders\Services\OrderStatusService;
 use App\Http\Controllers\Api\Orders\Services\OrderStoreService;
+use App\Http\Controllers\Api\Orders\Services\OrderUpdateService;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -29,6 +30,11 @@ class OrderController extends Controller
     }
 
     public function status(OrderStatusService $service, Request $request, int $id): Order
+    {
+        return $service->handle($request, $id);
+    }
+
+    public function update(OrderUpdateService $service, Request $request, int $id): Order
     {
         return $service->handle($request, $id);
     }

@@ -81,32 +81,6 @@ class ProductGalleryService
         }
     }
 
-    public function validateActiveVariants(Product $product, array $submittedRows = []): void
-    {
-        if ($product->status !== 'active') {
-            return;
-        }
-
-        $variants = $product->variants()->with('images')->get();
-        $first = $variants->first();
-        if ($variants->count() === 1 && ! $first->name && empty($first->attributes) && $first->images->isEmpty()) {
-            return;
-        }
-
-        $errors = [];
-        foreach ($variants->where('active', true) as $variant) {
-            $photos = $variant->images;
-            if ($photos->where('primary', true)->count() !== 1 || $photos->where('primary', false)->isEmpty()) {
-                $field = isset($submittedRows[$variant->id]) ? "variants.{$submittedRows[$variant->id]}.gallery" : "variants.gallery.{$variant->id}";
-                $errors[$field] = "Add a featured image and at least one gallery image for {$variant->sku}.";
-            }
-        }
-
-        if ($errors) {
-            throw ValidationException::withMessages($errors);
-        }
-    }
-
     private function invalid(string $field, string $message): never
     {
         throw ValidationException::withMessages([$field => $message]);

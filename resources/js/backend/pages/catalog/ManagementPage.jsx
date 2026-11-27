@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 import { usePermissions } from '../../layouts/PermissionsContext';
-import { request, money, cents, input } from './catalogUi';
+import { request, money, input } from './catalogUi';
+import DeleteCatalogModal from './components/DeleteCatalogModal';
 import CategoryModal from './components/CategoryModal';
 import { Link } from '@inertiajs/react';
 import StockAdjustmentForm from './components/StockAdjustmentForm';
 import StockHistory from './components/StockHistory';
-import OrderForm from './components/OrderForm';
-import OrderInvoice from './components/OrderInvoice';
 const emptyCategory = {
   name: '',
   active: true,
@@ -23,14 +22,12 @@ export default function ManagementPage({
   const [reference, setReference] = useState('');
   const [orderFilters, setOrderFilters] = useState({ reference: '', source: '', status: '' });
   const [form, setForm] = useState(null),
-    [detail, setDetail] = useState(null),
     [variant, setVariant] = useState(null),
     [history, setHistory] = useState(null);
+  const [notice, setNotice] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [error, setError] = useState(''),
-    [busy, setBusy] = useState(false),
-    [order, setOrder] = useState(null),
-    [options, setOptions] = useState([]),
-    [variantSearch, setVariantSearch] = useState('');
+    [busy, setBusy] = useState(false);
   const canView = can(section + '.view');
   const canCreate = can(section + '.create');
   const canUpdate = can(section + '.update');
@@ -44,6 +41,7 @@ export default function ManagementPage({
   async function run(fn) {
     setBusy(true);
     setError('');
+    setNotice('');
     try {
       await fn();
     } catch (e) {
@@ -54,10 +52,9 @@ export default function ManagementPage({
   }
   useEffect(() => {
     setPage(1);
+    setDeleteTarget(null);
     setForm(null);
-    setDetail(null);
     setHistory(null);
-    setOrder(null);
     setVariant(null);
     setSearch('');
     setReference('');
@@ -93,25 +90,14 @@ export default function ManagementPage({
         }
         setError('');
         setForm({ ...emptyCategory });
-        setDetail(null);
       }}>Add {section === 'categories' ? 'category' : 'product'}</button>}
-      {canCreate && section === 'orders' && <button className="btn btn-primary" onClick={() => {
-        setOrder({
-          submission_key: crypto.randomUUID(),
-          customer_name: '',
-          phone: '',
-          email: '',
-          address: '',
-          delivery: '0',
-          items: []
-        });
-        setDetail(null);
-      }}>Create COD order</button>}
+      {canCreate && section === 'orders' && <Link className="btn btn-primary" href="/dashboard/orders/create">Create COD order</Link>}
     </div>
     {error && !form && <div role="alert" className="alert alert-error print:hidden">{error}</div>}
+    {notice && <p role="status" className="alert alert-success">{notice}</p>}
     <fieldset disabled={busy} className="space-y-5">
  {form && section === 'categories' && (form.id ? canUpdate : canCreate) && <CategoryModal form={form} save={save} change={change} setForm={setForm} busy={busy} error={error} />}
- {canView && !order && <div className="print:hidden">
+ {canView && <div className="print:hidden">
         {section === 'orders' ? <div className="flex flex-wrap items-end gap-3">
           <form className="flex items-end gap-2" onSubmit={e => {
             e.preventDefault();
@@ -153,7 +139,7 @@ export default function ManagementPage({
                 <th>ID</th>
                 <th>{section === 'orders' ? 'Customer' : section === 'inventory' ? 'SKU' : 'Name'}</th>
                 {section === 'inventory' && <th>Variant name</th>}
-                {section === 'orders' && <th>Source</th>}
+                {section === 'orders' && <><th>Source</th><th>Status</th></>}
                 <th>Details</th>
                 <th>Actions</th>
               </tr>
@@ -162,8 +148,21 @@ export default function ManagementPage({
                 <td>{row.id}</td>
                 <td>{section === 'inventory' ? row.sku : row.name || row.sku || row.customer_name}</td>
                 {section === 'inventory' && <td>{row.name || '—'}</td>}
-                {section === 'orders' && <td>{row.source === 'storefront' ? 'Storefront' : 'Staff'}</td>}
-                <td>{section === 'categories' ? row.active ? 'Active' : 'Inactive' : section === 'products' ? row.status : section === 'inventory' ? `${row.product_name} · Stock ${row.stock} · ${money(row.price_cents)}` : `${row.status} · ${money(row.total_cents)}`}</td>
+                {section === 'orders' && <><td>{row.source === 'storefront' ? 'Storefront' : 'Staff'}</td>
+                  <td>{canUpdate ? <select className="select select-bordered select-sm" aria-label={`Status for order #${row.id}`}
+                    value={row.status} disabled={!row.allowed_statuses?.length} onChange={event => {
+                      const status = event.target.value;
+                      run(async () => {
+                        try { await request(`orders/${row.id}/status`, { method: 'PATCH', body: { status } }); }
+                        catch (failure) { await load(); throw failure; }
+                        await load();
+                        setNotice(`Order #${row.id} status updated.`);
+                      });
+                    }}>
+                    <option value={row.status}>{row.status}</option>
+                    {row.allowed_statuses?.map(status => <option key={status}>{status}</option>)}
+                  </select> : row.status}</td></>}
+                <td>{section === 'categories' ? row.active ? 'Active' : 'Inactive' : section === 'products' ? row.status : section === 'inventory' ? `${row.product_name} · Stock ${row.stock} · ${money(row.price_cents)}` : money(row.total_cents)}</td>
                 <td className="flex gap-2">{section === 'products' && canView && <><Link className="btn btn-sm" href={`/dashboard/products/${row.id}`}>Show</Link><Link className="btn btn-sm" href={`/dashboard/products/${row.id}/reviews`}>Reviews</Link></>}{canUpdate && ['categories', 'products'].includes(section) && <button className="btn btn-sm" onClick={() => {
                     if (section === 'products') {
                       window.location.assign(`/dashboard/products/${row.id}/edit`);
@@ -171,12 +170,11 @@ export default function ManagementPage({
                     }
                     window.location.assign(`/dashboard/categories/${row.id}/edit`);
                   }}>Edit</button>}
-{canDelete && section === 'categories' && <button className="btn btn-sm" onClick={() => run(async () => {
-                    await request(`categories/${row.id}`, {
-                      method: 'DELETE'
-                    });
-                    await load();
-                  })}>Delete</button>}
+{canDelete && ['categories', 'products'].includes(section) && <button type="button" className="btn btn-sm btn-error btn-outline" onClick={() => {
+                    setError('');
+                    setDeleteTarget(row);
+                  }}>Delete</button>}
+
 
 {section === 'inventory' && <>
 {canUpdate && <button className="btn btn-sm" onClick={() => setVariant({
@@ -187,7 +185,12 @@ export default function ManagementPage({
                     })}>Adjust</button>}
 <button className="btn btn-sm" onClick={() => run(async () => setHistory(await request(`variants/${row.id}/movements`)))}>History</button>
 </>}
-{section === 'orders' && <button className="btn btn-sm" onClick={() => run(async () => setDetail(await request(`orders/${row.id}`)))}>View / invoice</button>}</td>
+{section === 'orders' && <>
+  <Link className="btn btn-sm" href={`/dashboard/orders/${row.id}/invoice`}>View invoice</Link>
+  {canUpdate && <>
+    <Link className="btn btn-sm" href={`/dashboard/orders/${row.id}/edit`}>Edit order</Link>
+  </>}
+</>}</td>
               </tr>)}</tbody>
           </table>
           {!rows.length && <p className="p-5">No records yet.</p>}
@@ -201,10 +204,17 @@ export default function ManagementPage({
  {section === 'inventory' && canView && canUpdate && variant && <StockAdjustmentForm variant={variant} setVariant={setVariant} run={run} setHistory={setHistory} load={load} />}
  {canView && history && <StockHistory history={history} run={run} setHistory={setHistory} />}
  
- {canCreate && order && <OrderForm canView={canView} order={order} setOrder={setOrder} run={run} setDetail={setDetail} load={load} variantSearch={variantSearch} setVariantSearch={setVariantSearch} options={options} setOptions={setOptions} />}
- {section === 'orders' && canView && detail && <OrderInvoice canUpdate={canUpdate} detail={detail} run={run} setDetail={setDetail} load={load} />}
  </fieldset>
+    {deleteTarget && ['categories', 'products'].includes(section) && canDelete && <DeleteCatalogModal
+      item={deleteTarget} kind={section === 'products' ? 'product' : 'category'} busy={busy} error={error}
+      onClose={() => { if (!busy) setDeleteTarget(null); }}
+      onConfirm={() => run(async () => {
+        await request(`${section}/${deleteTarget.id}`, { method: 'DELETE' });
+        setDeleteTarget(null);
+        setNotice(section === 'products' ? 'Product deleted. Existing orders and stock history are preserved.' : 'Category deleted.');
+        if (rows.length === 1 && page > 1) setPage(page - 1);
+        else await load();
+      })} />}
     {busy && <p role="status">Saving / loading…</p>}
-    <style>{'@media print { body * { visibility:hidden; } #order-invoice, #order-invoice * { visibility:visible; } #order-invoice { position:absolute; left:0; top:0; width:100%; } #order-invoice .print\\:hidden { display:none; } }'}</style>
   </section>;
 }

@@ -15,15 +15,13 @@ class VariantSaveService
 {
     public function __construct(
         private readonly StockMovementService $stockMovements,
-        private readonly ProductGalleryService $galleries,
     ) {}
 
     public function handle(Request $request, int $product, ?int $id = null): Variant
     {
         return DB::transaction(function () use ($request, $product, $id) {
-            $record = Product::whereKey($product)->lockForUpdate()->firstOrFail();
+            Product::whereKey($product)->lockForUpdate()->firstOrFail();
             $variant = $this->save($request->all(), $product, $id, $request->user()->id);
-            $this->galleries->validateActiveVariants($record);
 
             return $variant;
         });

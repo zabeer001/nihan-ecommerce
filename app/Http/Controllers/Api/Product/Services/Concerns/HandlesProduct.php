@@ -30,7 +30,6 @@ trait HandlesProduct
             $product->categories()->sync($validated['category_ids']);
 
             $userId = $request->user()->id;
-            $submittedRows = [];
             foreach ($validated['variants'] ?? [] as $index => $variantData) {
                 try {
                     $variant = $this->variantService->save($variantData, $product->id, $variantData['id'] ?? null, $userId);
@@ -41,7 +40,6 @@ trait HandlesProduct
                     }
                     throw ValidationException::withMessages($errors);
                 }
-                $submittedRows[$variant->id] = $index;
                 if (isset($variantData['gallery'])) {
                     $this->galleries->sync($product, $variant, $variantData['gallery'], $userId, $id, "variants.$index.gallery");
                 }
@@ -79,7 +77,6 @@ trait HandlesProduct
                     break;
                 }
             }
-            $this->galleries->validateActiveVariants($product, $submittedRows);
 
             return $product->load(['categories', 'variants']);
         });
@@ -111,6 +108,9 @@ trait HandlesProduct
             'variants.*.corporate_price_cents' => 'nullable|integer|min:0|max:100000000',
             'variants.*.active' => 'required|boolean',
             'description' => 'nullable|string',
+            'meta_title' => 'nullable|string|max:255',
+            'meta_description' => 'nullable|string|max:1000',
+            'meta_pixel_id' => ['nullable', 'string', 'regex:/\A[0-9]{5,30}\z/'],
             'category_ids' => 'required|array|min:1',
             'category_ids.*' => 'required|integer|distinct|exists:categories,id',
             'status' => 'required|in:active,draft',

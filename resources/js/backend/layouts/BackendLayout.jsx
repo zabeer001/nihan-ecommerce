@@ -60,7 +60,7 @@ function BackendLayout({ children }) {
         <PermissionsContext.Provider value={profileLoaded ? currentUser?.permissions ?? [] : null}>
         <main
             data-theme={theme}
-            className="min-h-screen bg-base-200 text-base-content"
+            className="admin-ui min-h-screen bg-base-200 text-base-content"
         >
             <div className="drawer lg:drawer-open">
                 <input id="admin-drawer" type="checkbox" className="drawer-toggle" />

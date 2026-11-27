@@ -6,3 +6,84 @@
 @plugin "daisyui" {
   themes: all;
 }
+
+/* Shared admin button styles: inherited by every page, table, and dialog. */
+.admin-ui .btn {
+  border-radius: 0.5rem;
+  font-weight: 600;
+  text-shadow: none;
+  background-image: none;
+  transition: background-color 160ms ease, color 160ms ease,
+    border-color 160ms ease, box-shadow 160ms ease, translate 160ms ease;
+}
+
+.admin-ui .btn:not(.btn-primary, .btn-secondary, .btn-accent, .btn-neutral,
+  .btn-info, .btn-success, .btn-warning, .btn-error, .btn-ghost, .btn-link),
+.admin-ui .btn[href$="/edit"],
+.admin-ui .btn.btn-error {
+  --btn-color: var(--color-primary);
+  --btn-fg: var(--color-base-content);
+  --btn-bg: var(--color-base-100);
+  --btn-border: var(--color-base-300);
+  --btn-shadow: none;
+  color: var(--btn-fg);
+  background-color: var(--btn-bg);
+  border-color: var(--btn-border);
+}
+
+.admin-ui .table .btn:not(.btn-circle, .btn-square) {
+  min-height: 2.125rem;
+  height: auto;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.8125rem;
+  line-height: 1.25;
+}
+
+.admin-ui .btn:focus-visible {
+  outline: 2px solid var(--btn-color, var(--color-primary));
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .admin-ui .btn:not(:disabled, [disabled], .btn-disabled, [aria-disabled="true"]):hover {
+    color: var(--admin-button-hover-content, var(--color-primary-content));
+    background-color: var(--btn-color, var(--color-primary));
+    border-color: var(--btn-color, var(--color-primary));
+    box-shadow: 0 3px 8px color-mix(in oklab, var(--btn-color, var(--color-primary)) 22%, transparent);
+    translate: 0 -1px;
+  }
+
+  .admin-ui .btn-primary:hover {
+    background-color: color-mix(in oklab, var(--color-primary) 88%, var(--color-base-content));
+  }
+}
+
+.admin-ui .btn-secondary { --admin-button-hover-content: var(--color-secondary-content); }
+.admin-ui .btn-accent { --admin-button-hover-content: var(--color-accent-content); }
+.admin-ui .btn-neutral { --admin-button-hover-content: var(--color-neutral-content); }
+.admin-ui .btn-info { --admin-button-hover-content: var(--color-info-content); }
+.admin-ui .btn-success { --admin-button-hover-content: var(--color-success-content); }
+.admin-ui .btn-warning { --admin-button-hover-content: var(--color-warning-content); }
+.admin-ui .btn-error { --admin-button-hover-content: var(--color-primary-content); }
+.admin-ui .btn[href$="/edit"] { --admin-button-hover-content: var(--color-primary-content); }
+
+.admin-ui .btn:not(:disabled, [disabled], .btn-disabled, [aria-disabled="true"]):active {
+  translate: 0 0;
+  box-shadow: none;
+}
+
+.admin-ui .btn:is(:disabled, [disabled], .btn-disabled, [aria-disabled="true"]) {
+  opacity: 0.5;
+  box-shadow: none;
+  translate: none;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-ui .btn {
+    transition: none;
+  }
+  .admin-ui .btn:not(:disabled, [disabled], .btn-disabled, [aria-disabled="true"]):hover {
+    translate: none;
+  }
+}

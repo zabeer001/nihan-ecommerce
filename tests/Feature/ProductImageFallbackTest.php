@@ -139,20 +139,52 @@ it('syncs variant and shared galleries before removing fallback references', fun
     Storage::disk('public')->assertExists($fallback->path);
 });
 
-it('rolls fallback cleanup back if later variant gallery validation fails', function () {
+it('saves an active variant with only a featured image and removes the fallback', function () {
     $product = fallbackProduct('Monsoon');
     $product->update(['status' => 'active']);
     $user = User::factory()->create();
     $this->seed(ProductImageFallbackSeeder::class);
     $fallback = $product->images()->sole();
     $upload = fallbackStage($product, $user);
-    expect(fn () => fallbackSave($product, $user, [
-        'variants' => [['sku' => 'INVALID-GALLERY', 'attributes' => ['color' => 'Gold'], 'price_cents' => 15000, 'active' => true,
+    fallbackSave($product, $user, [
+        'variants' => [['sku' => 'FEATURED-ONLY', 'attributes' => ['color' => 'Gold'], 'price_cents' => 15000, 'active' => true,
             'gallery' => ['items' => [['upload_id' => $upload, 'primary' => true]]]]],
-    ]))->toThrow(ValidationException::class);
-    expect($product->images()->sole()->id)->toBe($fallback->id);
-    $this->assertDatabaseHas('product_image_uploads', ['id' => $upload]);
+    ]);
+    expect($product->images()->count())->toBe(0)
+        ->and($product->variants()->sole()->images()->sole()->primary)->toBeTrue();
+    Storage::disk('public')->assertExists($fallback->path);
+    $this->assertDatabaseMissing('product_image_uploads', ['id' => $upload]);
 });
+
+it('saves active products and variants without photos or without a featured image', function (bool $galleryOnly) {
+    $product = fallbackProduct('Optional photos');
+    $user = User::factory()->create();
+    $items = $galleryOnly ? [['upload_id' => fallbackStage($product, $user), 'primary' => false]] : [];
+    fallbackSave($product, $user, [
+        'status' => 'active',
+        'gallery' => ['items' => []],
+        'variants' => [
+            ['sku' => 'OPTIONAL-GOLD', 'attributes' => ['color' => 'Gold'], 'price_cents' => 15000, 'active' => true,
+                'gallery' => ['items' => $items]],
+            ['sku' => 'OPTIONAL-SILVER', 'attributes' => ['color' => 'Silver'], 'price_cents' => 15000, 'active' => true],
+        ],
+    ]);
+    expect($product->fresh()->status)->toBe('active')
+        ->and($product->images()->count())->toBe(0)
+        ->and($product->variants()->where('active', true)->count())->toBe(2)
+        ->and(ProductImage::where('product_id', $product->id)->where('primary', true)->count())->toBe(0);
+    if ($galleryOnly) {
+        $variant = $product->variants()->where('sku', 'OPTIONAL-GOLD')->sole();
+        $image = $variant->images()->sole();
+        fallbackSave($product, $user, [
+            'status' => 'active',
+            'variants' => [['id' => $variant->id, 'sku' => $variant->sku, 'attributes' => $variant->attributes,
+                'price_cents' => $variant->price_cents, 'active' => true,
+                'gallery' => ['items' => [], 'removed_ids' => [$image->id]]]],
+        ]);
+        expect($variant->images()->count())->toBe(0);
+    }
+})->with([false, true]);
 
 it('keeps shared fallback files when admins delete or replace their gallery records', function () {
     $first = fallbackProduct('Padma one');

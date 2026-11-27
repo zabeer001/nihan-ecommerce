@@ -160,12 +160,18 @@ it('rolls back the entire product if any inline variant is invalid', function ()
     $this->assertDatabaseMissing('variants', ['sku' => 'DUPLICATE']);
 });
 
-it('archives products without deleting variants or their stock history', function () {
+it('deletes products from the catalog while preserving variants and stock history', function () {
     $variant = catalogFixture();
     $this->deleteJson('/api/admin/products/'.$variant->product_id)
         ->assertSuccessful()->assertJsonPath('status', 'success');
     $this->assertDatabaseHas('products', ['id' => $variant->product_id, 'status' => 'draft']);
     $this->assertDatabaseHas('variants', ['id' => $variant->id, 'active' => false, 'stock' => 5]);
+    $this->assertSoftDeleted('products', ['id' => $variant->product_id]);
+    $this->getJson('/api/admin/products')->assertOk()->assertJsonPath('data.data', []);
+    $this->getJson('/api/admin/products/'.$variant->product_id)->assertNotFound();
+    $this->getJson('/api/storefront/products/shirt')->assertNotFound();
+    expect($variant->fresh()->product->name)->toBe('Shirt');
+    $this->deleteJson('/api/admin/products/'.$variant->product_id)->assertNotFound();
 });
 
 function stagedCatalogPhotos($test, int $count, ?int $productId = null): array

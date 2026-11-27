@@ -81,7 +81,7 @@ export default function ProductGalleryForm({ gallery, change, title, error }) {
           onChange={event => select(event, false)} />
       </Field>
     </div>
-    <p className="text-xs text-base-content/60">JPG, PNG or WebP. Up to 5 MB per image.</p>
+    <p className="text-xs text-base-content/60">Featured and gallery images are optional. JPG, PNG or WebP. Up to 5 MB per image.</p>
     {error && <p role="alert" className="text-sm text-error">{error}</p>}
     <ul className="flex flex-wrap gap-4">
       {featured && renderPhoto(featured, -1)}

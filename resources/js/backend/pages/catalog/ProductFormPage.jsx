@@ -148,10 +148,6 @@ export default function ProductFormPage({ productId = null }) {
       if (hasVariants) {
         rows.forEach((variant, index) => {
           const field = `variants.${index}.gallery`;
-          const photos = variant.gallery.items;
-          if (payload.status === 'active' && variant.active && (!photos.some(photo => photo.primary) || !photos.some(photo => !photo.primary))) {
-            errors[field] = ['Add a featured image and at least one gallery image.'];
-          }
           galleries.push({ field, gallery: variant.gallery, target: payload.variants[index] });
         });
       }
